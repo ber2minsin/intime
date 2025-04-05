@@ -1,9 +1,13 @@
 <p align="center">
-  <img src="resources/banner.svg" alt="intime Banner" width="40%">
+  <img src="resources/banner.svg" alt="intime Banner" width="45%">
 </p>
 <p align="center">
-  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/ber2minsin/intime"><img alt="GitHub contributors" src="https://img.shields.io/github/contributors/ber2minsin/intime"><img alt="Issues" src="https://img.shields.io/github/issues/ber2minsin/intime"><img alt="Python Version" src="https://img.shields.io/badge/python-3.10+-blue">
+  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/ber2minsin/intime" style="margin-right: 10px;">
+  <img alt="GitHub contributors" src="https://img.shields.io/github/contributors/ber2minsin/intime" style="margin-right: 10px;">
+  <img alt="Issues" src="https://img.shields.io/github/issues/ber2minsin/intime" style="margin-right: 10px;">
+  <img alt="Python Version" src="https://img.shields.io/badge/python-3.10+-blue">
 </p>
+
 
 
 
