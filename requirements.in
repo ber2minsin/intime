@@ -1,2 +1,3 @@
 -r libs/base/requirements.in
 -r projects/core/requirements.in
+alembic
