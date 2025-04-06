@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "base_module"
+name = "app_inspect"
 version = "0.1.0"
 requires-python = ">=3.10"
 dynamic = ["dependencies"]
