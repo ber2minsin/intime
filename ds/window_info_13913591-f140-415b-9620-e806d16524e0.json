@@ -1,0 +1,20 @@
+{
+    "title": "Program Manager",
+    "process_id": 14176,
+    "handle": 65922,
+    "position": [
+        -1920,
+        0
+    ],
+    "size": [
+        4480,
+        1440
+    ],
+    "is_visible": true,
+    "is_minimized": false,
+    "is_maximized": false,
+    "class_name": "Progman",
+    "executable_path": "C:\\Windows\\explorer.exe",
+    "application_name": "explorer",
+    "icon_path": "D:\\Workspace\\time-trek\\icons\\explorer_1db84dd9_256.bmp"
+}

@@ -1,0 +1,20 @@
+{
+    "title": "Task Switching",
+    "process_id": 14176,
+    "handle": 4196014,
+    "position": [
+        0,
+        0
+    ],
+    "size": [
+        2498,
+        1440
+    ],
+    "is_visible": true,
+    "is_minimized": false,
+    "is_maximized": false,
+    "class_name": "MultitaskingViewFrame",
+    "executable_path": "C:\\Windows\\explorer.exe",
+    "application_name": "explorer",
+    "icon_path": "D:\\Workspace\\time-trek\\icons\\explorer_1db84dd9_256.bmp"
+}
