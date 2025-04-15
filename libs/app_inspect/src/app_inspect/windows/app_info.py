@@ -20,6 +20,12 @@ import threading
 
 ICON_SIZES = (256, 128, 64, 48, 32, 16)  # Sizes to extract icons in pixels
 
+# Add these new global variables at the top of the file with other globals
+_last_event = None
+_last_window_info = None
+_last_event_time = 0
+_event_debounce_ms = 500  # Debounce window in milliseconds
+
 
 class WindowInfo(BaseModel):
     """Pydantic model for storing window information."""
@@ -57,17 +63,13 @@ def _get_process_info(pid: int) -> tuple[str | None, str | None]:
 def _get_window_info(hwnd: int) -> WindowInfo | None:
     """Get information about a specific window handle."""
     if not win32gui.IsWindowVisible(hwnd):
-        return None
-    else:
         print(f"Window Handle: {hwnd} is being skipped because it is not visible.")
-        traceback.print_exc()
+        return None
 
     title = win32gui.GetWindowText(hwnd)
     if not title:
-        return None
-    else:
         print(f"Window Handle: {hwnd} is being skipped because it has an empty title.")
-        traceback.print_exc()
+        return None
 
     rect = win32gui.GetWindowRect(hwnd)
     x, y, right, bottom = rect
@@ -83,10 +85,12 @@ def _get_window_info(hwnd: int) -> WindowInfo | None:
 
     class_name = win32gui.GetClassName(hwnd)
 
-    for size in ICON_SIZES:
-        icon_path = extract_icon(executable_path, size=size)
-        if icon_path:
-            break
+    icon_path = None
+    if executable_path:
+        for size in ICON_SIZES:
+            icon_path = extract_icon(executable_path, size=size)
+            if icon_path:
+                break
 
     # Construct WindowInfo object
     return WindowInfo(
@@ -162,6 +166,7 @@ EVENT_TYPES = {
     win32con.EVENT_SYSTEM_DIALOGSTART: "Dialog",
     win32con.EVENT_SYSTEM_CAPTURESTART: "Capture",
     win32con.EVENT_SYSTEM_MINIMIZEEND: "UnMinimize",
+    win32con.EVENT_OBJECT_NAMECHANGE: "NameChange",  # Add this line
 }
 
 # Define the callback type
@@ -188,14 +193,38 @@ def _win_event_callback(
     hWinEventHook, event, hwnd, idObject, idChild, dwEventThread, dwmsEventTime
 ):
     """Callback function for WinEvents."""
+    global _last_event, _last_window_info, _last_event_time
+
     if event in EVENT_TYPES and _callback_func is not None:
         # Only process if the event is one we're interested in
         try:
-            event_name = EVENT_TYPES[event]
-            window_info = _get_window_info(hwnd) if hwnd else None
+            # Filter out spam events - only process events for visible windows with titles
+            if hwnd and win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd):
+                event_name = EVENT_TYPES[event]
+                window_info = _get_window_info(hwnd)
 
-            # Call the user-supplied callback with the event type and window information
-            _callback_func(event_name, window_info)
+                # Only call the callback if we have valid window info
+                if window_info:
+                    current_time = dwmsEventTime  # Windows timestamp
+
+                    # Check for duplicate events (same event type, same window, similar time)
+                    is_duplicate = (
+                        event == _last_event
+                        and window_info.handle
+                        == getattr(_last_window_info, "handle", None)
+                        and window_info.title
+                        == getattr(_last_window_info, "title", None)
+                        and (current_time - _last_event_time) < _event_debounce_ms
+                    )
+
+                    if not is_duplicate:
+                        _callback_func(event_name, window_info)
+
+                        # Update last event tracking
+                        _last_event = event
+                        _last_window_info = window_info
+                        _last_event_time = current_time
+
         except Exception as e:
             print(f"Error in window event callback: {e}")
 

@@ -1,0 +1,20 @@
+[project]
+name = "intime"
+version = "0.1.0"
+dependencies = [
+    "alembic>=1.15.2",
+    "app-inspect",
+    "pillow>=11.1.0",
+    "psutil>=7.0.0",
+    "pydantic>=2.11.1",
+    "pywin32>=310",
+]
+
+[tool.uv.workspace]
+members = ["libs/app_inspect", "libs/core", "projects/tracker", "projects/app"]
+
+[tool.uv.sources]
+app-inspect = { workspace = true }
+core = { workspace = true }
+tracker = { workspace = true }
+app = { workspace = true }
