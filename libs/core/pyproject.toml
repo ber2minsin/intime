@@ -13,3 +13,9 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+
+[tool.uv]
+package = true
+
+[project.scripts]
+core = "core.__main__:main"
