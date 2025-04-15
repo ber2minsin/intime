@@ -20,7 +20,7 @@ With intime, you can make **informed decisions** about your work habits and impr
 
 ### 📊 Usage
 
-### Setting up a development environment
+### 👩‍💻 Setting up a development environment
 
 #### Creating a virtual environment
 
@@ -60,7 +60,7 @@ Each commit has to include the locked dependencies, which reside under `requirem
 uv pip install -r requirements.txt
 ```
 
-or if you are using the `venv` module:
+or using just `pip`:
 
 ```bash
 pip install -r requirements.txt
@@ -71,8 +71,6 @@ If you want to add new dependencies, you should add the dependency to the `requi
 ```bash
 uv pip compile /path/to/requirements.in --output-file /path/to/requirements.txt
 ```
-
-we also have a base requirements.in file at the root of this project for lazy programmers who do not want to type the path of the relevant module everytime they add a dependency (such as myself).
 
 Since we are using `requirements.in` for declaring dependencies, you need to use one of `pip-tools` or `uv` to install the dependencies. If this becomes a problem, please open an issue and we will try to work on a solution. In theory, you should only need to install these tools if you plan to add new dependencies to the project, which is not common anyways.
 
