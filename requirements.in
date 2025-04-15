@@ -1,3 +1,0 @@
--r libs/app_inspect/requirements.in
--r projects/core/requirements.in
-alembic
