@@ -1,8 +1,7 @@
-use crate::models::WindowInfo;
-
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 use std::sync::mpsc::Sender;
+
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Foundation::HWND;
@@ -13,12 +12,22 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::Accessibility::HWINEVENTHOOK;
 use windows::Win32::UI::Accessibility::SetWinEventHook;
+use windows::Win32::UI::WindowsAndMessaging::EVENT_OBJECT_CREATE;
 use windows::Win32::UI::WindowsAndMessaging::EVENT_OBJECT_NAMECHANGE;
 use windows::Win32::UI::WindowsAndMessaging::EVENT_SYSTEM_FOREGROUND;
+use windows::Win32::UI::WindowsAndMessaging::GWL_EXSTYLE;
+use windows::Win32::UI::WindowsAndMessaging::GetWindowLongW;
 use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+use windows::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+use windows::Win32::UI::WindowsAndMessaging::OBJID_CLIENT;
+use windows::Win32::UI::WindowsAndMessaging::OBJID_WINDOW;
 use windows::Win32::UI::WindowsAndMessaging::WINEVENT_OUTOFCONTEXT;
+use windows::Win32::UI::WindowsAndMessaging::WS_EX_TOOLWINDOW;
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW};
 use windows::core::PWSTR;
+
+use crate::core::events::WindowEvent;
+use crate::core::events::WindowForegroundEvent;
 // For ptr::null_mut() if needed, but PWSTR::null() is better
 
 pub fn get_active_window() -> Option<HWND> {
@@ -30,20 +39,6 @@ pub fn get_active_window() -> Option<HWND> {
             Some(hwnd)
         }
     }
-}
-
-pub fn get_active_window_info(hwnd: HWND) -> Option<WindowInfo> {
-    // Get the window title
-    let title = get_window_title(hwnd)?;
-    // Get the exe name
-    let app_path = get_app_path(hwnd)?;
-    let app_name = get_file_name_from_path(app_path.clone())?;
-
-    Some(WindowInfo {
-        title,
-        executable_name: app_name,
-        executable_path: app_path,
-    })
 }
 
 pub fn get_window_title(hwnd: HWND) -> Option<String> {
@@ -120,7 +115,7 @@ pub fn get_app_path(hwnd: HWND) -> Option<String> {
     }
 }
 
-fn get_file_name_from_path(full_path: String) -> Option<String> {
+fn get_app_name_from_path(full_path: String) -> Option<String> {
     let file_name = std::path::Path::new(&full_path)
         .file_name()
         .and_then(|name| name.to_str())
@@ -129,12 +124,12 @@ fn get_file_name_from_path(full_path: String) -> Option<String> {
 }
 
 thread_local! {
-    static WINDOW_CHANGE_SENDER: std::cell::RefCell<Option<Sender<WindowInfo>>> =
+    static WINDOW_CHANGE_SENDER: std::cell::RefCell<Option<Sender<Box<dyn WindowEvent + Send>>>> =
         std::cell::RefCell::new(None);
 }
 
 pub fn set_win_event_hook(
-    sender: Sender<WindowInfo>,
+    sender: Sender<Box<dyn WindowEvent + Send>>,
 ) -> Result<HWINEVENTHOOK, windows::core::Error> {
     WINDOW_CHANGE_SENDER.with(|cell| {
         *cell.borrow_mut() = Some(sender);
@@ -143,7 +138,7 @@ pub fn set_win_event_hook(
     let hook = unsafe {
         SetWinEventHook(
             EVENT_SYSTEM_FOREGROUND,
-            EVENT_OBJECT_NAMECHANGE,
+            EVENT_OBJECT_CREATE, // This is a big range, we narrow it down in the callback
             None,
             Some(win_event_hook_callback),
             0,
@@ -159,25 +154,90 @@ unsafe extern "system" fn win_event_hook_callback(
     _hook_handle: HWINEVENTHOOK,
     event_id: u32,
     window_handle: HWND,
-    _object_id: i32,
+    object_id: i32,
     _child_id: i32,
     _thread_id: u32,
     _timestamp: u32,
 ) {
-    // Only check title change and foreground change events
-    if event_id != EVENT_SYSTEM_FOREGROUND && event_id != EVENT_OBJECT_NAMECHANGE {
+    if !is_visible_and_valid(window_handle, object_id) {
         return;
     }
+    let event_info: Option<Box<dyn WindowEvent + Send>> = match event_id {
+        EVENT_SYSTEM_FOREGROUND => {
+            if !is_interesting_window(window_handle) {
+                println!("Window {:?} is not interesting, skipping.", window_handle);
+                return;
+            }
+            gather_window_info(window_handle)
+        }
+        EVENT_OBJECT_NAMECHANGE => None,
+        _ => None,
+    };
 
-    if let Some(info) = get_active_window_info(window_handle) {
-        send_window_info(info);
+    if let Some(event) = event_info {
+        send_window_info(event);
     }
 }
 
-fn send_window_info(info: WindowInfo) {
+fn gather_window_info(window_handle: HWND) -> Option<Box<dyn WindowEvent + Send>> {
+    let app_path = get_app_path(window_handle);
+    let app_name = app_path
+        .as_ref()
+        .and_then(|path| get_app_name_from_path(path.clone()));
+    let app_title = get_window_title(window_handle);
+    if app_path.is_none() || app_name.is_none() || app_title.is_none() {
+        return None;
+    }
+    let app_name = app_name.unwrap();
+    let app_title = app_title.unwrap();
+
+    let info = WindowForegroundEvent {
+        name: app_name,
+        title: app_title,
+        path: app_path.unwrap(),
+    };
+
+    Some(Box::new(info))
+}
+
+fn send_window_info(info: Box<dyn WindowEvent + Send>) {
     WINDOW_CHANGE_SENDER.with(|cell| {
         if let Some(sender) = &*cell.borrow() {
             let _ = sender.send(info); // Ignore error if receiver is closed
         }
     });
+}
+
+fn is_visible_and_valid(window_handle: HWND, object_id: i32) -> bool {
+    // Skip if the handle is null
+    if window_handle.0 == std::ptr::null_mut() {
+        return false;
+    }
+
+    // Check visibility and object type
+    let is_visible = unsafe { IsWindowVisible(window_handle) }.as_bool();
+    let is_valid_object = object_id == OBJID_WINDOW.0 || object_id == OBJID_CLIENT.0;
+    is_visible && is_valid_object
+}
+
+fn is_interesting_window(window_handle: HWND) -> bool {
+    unsafe {
+        let ex_style = GetWindowLongW(window_handle, GWL_EXSTYLE);
+
+        // tool windows
+        if (ex_style & WS_EX_TOOLWINDOW.0 as i32) != 0 {
+            return false;
+        }
+
+        // Check window title
+        // TODO make a configurable list to blacklist windows
+        if let Some(title) = get_window_title(window_handle) {
+            // Skip empty titles or system windows
+            if title.is_empty() {
+                return false;
+            }
+        }
+    }
+
+    true
 }
