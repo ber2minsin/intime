@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS window_event;
+DROP TABLE IF EXISTS app;

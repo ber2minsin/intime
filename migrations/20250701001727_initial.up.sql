@@ -6,6 +6,7 @@ CREATE TABLE app (
     icon BLOB,
     UNIQUE(name, path) -- FIXME problem might occur if the path changes, i.e 
                        -- the app is moved to a different location
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE window_event (
@@ -13,6 +14,6 @@ CREATE TABLE window_event (
     app_id INTEGER NOT NULL REFERENCES app(id) ON DELETE RESTRICT,
     window_title TEXT NOT NULL,
     event_type TEXT NOT NULL, -- we might perhaps add a check here
-    occured_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(app_id, window_title, event_type, occured_at) -- We ensure this in backend as well, but this is a safety net
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(app_id, window_title, event_type, created_at) -- We ensure this in backend as well, but this is a safety net
 );
