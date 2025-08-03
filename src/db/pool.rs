@@ -1,16 +1,15 @@
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
-pub async fn make_pool(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
+pub async fn create_pool(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
     let pool = SqlitePoolOptions::new()
         .max_connections(8)
         .acquire_timeout(Duration::from_secs(5))
         .connect_with(
-            sqlx::sqlite::SqliteConnectOptions::new()
-                .filename(db_url)
+            sqlx::sqlite::SqliteConnectOptions::from_str(db_url)?
+                .foreign_keys(true)
                 .create_if_missing(true)
-                .pragma("journal_mode", "WAL")
-                .pragma("foreign_keys", "ON"),
+                .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal),
         )
         .await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
