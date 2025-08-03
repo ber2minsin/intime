@@ -20,8 +20,8 @@ sqlx = { version = "0.8.6", features = [
     "macros",
 ] }
 dotenv = "0.15"
-config = { version = "0.15.11" }
 lazy_static = "1.4.0"
+anyhow = { version = "1.0.95" }
 
 [dev-dependencies]
 sqlx-cli = { version = "0.8.6", features = ["sqlite"] }
