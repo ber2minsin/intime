@@ -22,7 +22,7 @@ impl Debug for WindowEventType {
             23u32 => write!(f, "EVENT_SYSTEM_MINIMIZEEND"), // This is for restoring minimized windows, same as EVENT_SYSTEM_FOREGROUND but does not include input focus
             22u32 => write!(f, "EVENT_SYSTEM_MINIMIZESTART"),
             32773u32 => write!(f, "EVENT_OBJECT_FOCUS"), // This hook is for keyboard focus changes
-            _ => write!(f, ""),
+            _ => Err(std::fmt::Error),
         }
     }
 }
