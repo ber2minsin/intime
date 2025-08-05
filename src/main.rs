@@ -9,6 +9,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let processor = WindowEventProcessor::new(db_pool);
     processor.start();
-
+    tokio::signal::ctrl_c().await?;
     Ok(())
 }
