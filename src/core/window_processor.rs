@@ -1,7 +1,8 @@
 use crate::core::events::{WindowEvent, WindowForegroundEvent};
 use crate::db::crud::{get_saved_app, save_app, update_app_path};
 use crate::db::models::DBApp;
-use crate::tracker;
+use crate::platform::tracker::set_win_event_hook;
+
 use sqlx::SqlitePool;
 use std::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::Duration;
@@ -31,8 +32,7 @@ impl WindowEventProcessor {
     }
 
     fn run_message_loop(msg_sender: Sender<Box<dyn WindowEvent + Send>>) {
-        let hook =
-            tracker::set_win_event_hook(msg_sender).expect("Failed to set Windows event hook");
+        let hook = set_win_event_hook(msg_sender).expect("Failed to set Windows event hook");
         assert!(!hook.is_invalid(), "Windows event hook is invalid");
 
         println!("Windows event hook set successfully");
@@ -83,6 +83,14 @@ impl WindowEventProcessor {
                 eprintln!("Error processing foreground event: {}", e);
             }
         }
+        self.schedule_screenshot(event).await;
+    }
+
+    async fn schedule_screenshot(&self, event: &WindowForegroundEvent) {
+        println!(
+            "Scheduling screenshot for app: Name: {}, Path: {}",
+            event.name, event.path
+        );
     }
 
     async fn find_or_create_app(
