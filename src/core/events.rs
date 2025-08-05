@@ -45,6 +45,7 @@ pub struct WindowForegroundEvent {
     pub name: String,
     pub title: String,
     pub path: String,
+    pub hwnd: isize,
 }
 
 impl WindowEvent for WindowForegroundEvent {

@@ -1,26 +1,34 @@
 use crate::core::events::{WindowEvent, WindowForegroundEvent};
 use crate::db::crud::{get_saved_app, save_app, update_app_path};
 use crate::db::models::DBApp;
+use crate::platform::screenshot::screenshot_window;
 use crate::platform::tracker::set_win_event_hook;
 
 use sqlx::SqlitePool;
 use std::sync::mpsc::{self, Receiver, Sender};
 use tokio::time::Duration;
+use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage};
 
 pub struct WindowEventProcessor {
     db_pool: SqlitePool,
+    current_foreground_window_hwnd: Option<isize>,
+    screenshot_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl WindowEventProcessor {
     pub fn new(db_pool: SqlitePool) -> Self {
-        Self { db_pool }
+        Self {
+            db_pool,
+            current_foreground_window_hwnd: None,
+            screenshot_handle: None,
+        }
     }
 
     pub fn start(&self) {
         let (msg_sender, msg_receiver) = mpsc::channel::<Box<dyn WindowEvent + Send>>();
         let db_pool = self.db_pool.clone();
-        let processor = WindowEventProcessor { db_pool };
+        let mut processor = WindowEventProcessor::new(db_pool);
 
         let _hook_thread = tokio::task::spawn_blocking(move || {
             Self::run_message_loop(msg_sender);
@@ -36,18 +44,17 @@ impl WindowEventProcessor {
         assert!(!hook.is_invalid(), "Windows event hook is invalid");
 
         println!("Windows event hook set successfully");
-
-        // Run the Windows message loop
         unsafe {
             let mut msg = std::mem::zeroed();
             while GetMessageW(&mut msg, None, 0, 0).into() {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
+            println!("Exiting message loop");
         }
     }
 
-    pub async fn process_events(&self, msg_receiver: Receiver<Box<dyn WindowEvent + Send>>) {
+    pub async fn process_events(&mut self, msg_receiver: Receiver<Box<dyn WindowEvent + Send>>) {
         loop {
             match msg_receiver.try_recv() {
                 Ok(window_event) => self.handle_window_event(window_event).await,
@@ -58,11 +65,15 @@ impl WindowEventProcessor {
         }
     }
 
-    async fn handle_window_event(&self, window_event: Box<dyn WindowEvent + Send>) {
+    async fn handle_window_event(&mut self, window_event: Box<dyn WindowEvent + Send>) {
         if let Some(foreground_event) = window_event
             .as_any()
             .downcast_ref::<WindowForegroundEvent>()
         {
+            println!(
+                "Received foreground event: Name: {}, Title: {}, Path: {}",
+                foreground_event.name, foreground_event.title, foreground_event.path
+            );
             self.handle_foreground_event(foreground_event).await;
         }
         // Handle others
@@ -71,7 +82,7 @@ impl WindowEventProcessor {
         }
     }
 
-    async fn handle_foreground_event(&self, event: &WindowForegroundEvent) {
+    async fn handle_foreground_event(&mut self, event: &WindowForegroundEvent) {
         match self.find_or_create_app(event).await {
             Ok(app) => {
                 println!(
@@ -83,14 +94,36 @@ impl WindowEventProcessor {
                 eprintln!("Error processing foreground event: {}", e);
             }
         }
-        self.schedule_screenshot(event).await;
+
+        if self.current_foreground_window_hwnd != Some(event.hwnd) {
+            self.current_foreground_window_hwnd = Some(event.hwnd);
+
+            // Previous screenshot does not need to be run anymore
+            if let Some(handle) = self.screenshot_handle.take() {
+                handle.abort();
+            }
+            self.schedule_screenshot(event).await;
+        }
     }
 
-    async fn schedule_screenshot(&self, event: &WindowForegroundEvent) {
+    async fn schedule_screenshot(&mut self, event: &WindowForegroundEvent) {
         println!(
             "Scheduling screenshot for app: Name: {}, Path: {}",
             event.name, event.path
         );
+
+        let hwnd_val = event.hwnd;
+        let app_name = event.name.clone();
+
+        let screenshot_task = tokio::task::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(300)); // TODO get this from config or something else
+            loop {
+                interval.tick().await;
+                execute_screenshot_on_interval(hwnd_val, app_name.clone()).await;
+            }
+        });
+
+        self.screenshot_handle = Some(screenshot_task);
     }
 
     async fn find_or_create_app(
@@ -140,5 +173,41 @@ impl WindowEventProcessor {
             .ok_or("Failed to retrieve saved app")?;
 
         Ok(saved_app)
+    }
+}
+
+async fn execute_screenshot_on_interval(
+    hwnd_val: isize,
+    app_name: String, // TODO Remove this
+) {
+    let hwnd_val_copy = hwnd_val;
+
+    let result = tokio::task::spawn_blocking(move || {
+        let hwnd = HWND(hwnd_val_copy as *mut std::ffi::c_void);
+        screenshot_window(hwnd)
+    })
+    .await;
+
+    println!("Taking screenshot for app: {}", app_name);
+
+    match result {
+        Ok(Some(image)) => {
+            println!("Screenshot taken for app: {}", app_name);
+            // TODO save screenshot to the db
+            // Save to disk for now
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(); // This works for now
+
+            let screenshot_path = format!("screenshots/{}_{}.png", app_name, timestamp);
+            image.save(screenshot_path).unwrap();
+        }
+        Ok(None) => {
+            eprintln!("Failed to take screenshot for app: {}", app_name);
+        }
+        Err(e) => {
+            eprintln!("Screenshot task failed for app {}: {}", app_name, e);
+        }
     }
 }

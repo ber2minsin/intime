@@ -197,6 +197,7 @@ fn gather_window_info(window_handle: HWND) -> Option<Box<dyn WindowEvent + Send>
         name: app_name,
         title: app_title,
         path: app_path.unwrap(),
+        hwnd: window_handle.0 as isize,
     };
 
     Some(Box::new(info))
