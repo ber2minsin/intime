@@ -11,6 +11,8 @@ windows = { version = "0.61.1", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
     "Win32_UI_Accessibility",
+    "Win32_Graphics",
+    "Win32_Graphics_Gdi",
 ] }
 scopeguard = "1.2"
 tokio = { version = "1.44", features = ["full"] }
@@ -22,6 +24,7 @@ sqlx = { version = "0.8.6", features = [
 dotenv = "0.15"
 lazy_static = "1.4.0"
 anyhow = { version = "1.0.95" }
+image = { version = "0.25.6" }
 
 [dev-dependencies]
 sqlx-cli = { version = "0.8.6", features = ["sqlite"] }
