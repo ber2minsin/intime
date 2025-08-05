@@ -31,11 +31,36 @@
 ```bash
 git clone https://github.com/ber2minsin/intime.git
 cd intime
-cargo build --release
-cargo run
 ```
 
-The application creates a local SQLite database at `./data/intime.db` by default.
+You should set up a `.env` file in the root directory of the project. You can use the provided `.env.example` as a template.
+
+After setting up the `.env` file, you can run the application using:
+
+```bash
+cargo run --release
+```
+
+The application creates a local SQLite database at `./data/intime.db` by default (or specified in the `.env` file). If it fails to create the database, you can manually create the database using the following command:
+
+```bash
+# install sqlx-cli if you haven't already
+cargo install sqlx-cli --no-default-features --features sqlite
+```
+
+Then, run the following commands to create the database and apply migrations:
+
+```bash
+sqlx db create
+sqlx migrate run
+``` 
+
+Optionally, you can provide the database URL in the command
+
+```bash
+sqlx db create --database-url sqlite://./data/intime.db
+sqlx migrate run --database-url sqlite://./data/intime.db
+```
 
 ---
 
