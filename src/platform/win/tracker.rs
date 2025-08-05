@@ -30,7 +30,8 @@ use crate::core::events::WindowEvent;
 use crate::core::events::WindowForegroundEvent;
 // For ptr::null_mut() if needed, but PWSTR::null() is better
 
-pub fn get_active_window() -> Option<HWND> {
+#[allow(dead_code)] // Allow dead code for now, as this might be used later
+fn get_active_window() -> Option<HWND> {
     unsafe {
         let hwnd = GetForegroundWindow();
         if hwnd.0 == std::ptr::null_mut() {
@@ -41,7 +42,7 @@ pub fn get_active_window() -> Option<HWND> {
     }
 }
 
-pub fn get_window_title(hwnd: HWND) -> Option<String> {
+fn get_window_title(hwnd: HWND) -> Option<String> {
     let mut buffer: [u16; MAX_PATH as usize] = [0; MAX_PATH as usize];
     let length = unsafe { GetWindowTextW(hwnd, &mut buffer) };
 
@@ -52,7 +53,7 @@ pub fn get_window_title(hwnd: HWND) -> Option<String> {
     }
 }
 
-pub fn get_process_id(hwnd: HWND) -> Option<u32> {
+fn get_process_id(hwnd: HWND) -> Option<u32> {
     let mut process_id: u32 = 0;
 
     unsafe {
@@ -66,7 +67,7 @@ pub fn get_process_id(hwnd: HWND) -> Option<u32> {
     }
 }
 
-pub fn get_process_handle(process_id: u32) -> Option<HANDLE> {
+fn get_process_handle(process_id: u32) -> Option<HANDLE> {
     unsafe {
         let process_handle = OpenProcess(
             PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
@@ -82,7 +83,8 @@ pub fn get_process_handle(process_id: u32) -> Option<HANDLE> {
         }
     }
 }
-pub fn get_app_path(hwnd: HWND) -> Option<String> {
+
+fn get_app_path(hwnd: HWND) -> Option<String> {
     let process_id = get_process_id(hwnd)?;
 
     let process_handle = get_process_handle(process_id)?;
