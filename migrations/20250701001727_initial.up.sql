@@ -4,9 +4,9 @@ CREATE TABLE app (
     name TEXT NOT NULL,
     path TEXT NOT NULL,
     icon BLOB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(name, path) -- FIXME problem might occur if the path changes, i.e 
                        -- the app is moved to a different location
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE window_event (
