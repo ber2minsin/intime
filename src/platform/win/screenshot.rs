@@ -152,7 +152,12 @@ fn remove_black_borders(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ImageBuffer<Rgb<
     // Helper to check if a pixel is pure black
     let is_black = |p: &Rgb<u8>| p.0[0] == 0 && p.0[1] == 0 && p.0[2] == 0;
 
-    // Find top
+    // 4 loops are faster due to the nature of the search,
+    // we only have outlines to check.
+
+    // 'loop_name syntax names the loop so we can break
+    // out of it in the inside loop.
+
     'outer_top: for y in 0..height {
         for x in 0..width {
             if !is_black(&img.get_pixel(x, y)) {
@@ -162,7 +167,6 @@ fn remove_black_borders(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ImageBuffer<Rgb<
         }
     }
 
-    // Find bottom
     'outer_bottom: for y in (0..height).rev() {
         for x in 0..width {
             if !is_black(&img.get_pixel(x, y)) {
@@ -172,7 +176,6 @@ fn remove_black_borders(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ImageBuffer<Rgb<
         }
     }
 
-    // Find left
     'outer_left: for x in 0..width {
         for y in top..bottom {
             if !is_black(&img.get_pixel(x, y)) {
@@ -182,7 +185,6 @@ fn remove_black_borders(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ImageBuffer<Rgb<
         }
     }
 
-    // Find right
     'outer_right: for x in (0..width).rev() {
         for y in top..bottom {
             if !is_black(&img.get_pixel(x, y)) {
