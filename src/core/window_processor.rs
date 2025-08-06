@@ -1,12 +1,15 @@
 use crate::core::events::{WindowEvent, WindowForegroundEvent};
 use crate::db::crud::{get_saved_app, save_app, update_app_path};
 use crate::db::models::DBApp;
-use crate::platform::screenshot::screenshot_window;
+use crate::platform::screenshot::{self, screenshot_window};
 use crate::platform::tracker::set_win_event_hook;
 
 use sqlx::SqlitePool;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
-use tokio::time::Duration;
+use std::sync::{Arc, Mutex};
+use tokio::time::{Duration, Instant};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage};
 
@@ -14,6 +17,7 @@ pub struct WindowEventProcessor {
     db_pool: SqlitePool,
     current_foreground_window_hwnd: Option<isize>,
     screenshot_handle: Option<tokio::task::JoinHandle<()>>,
+    screenshot_instants: Arc<Mutex<HashMap<isize, Instant>>>,
 }
 
 impl WindowEventProcessor {
@@ -22,6 +26,7 @@ impl WindowEventProcessor {
             db_pool,
             current_foreground_window_hwnd: None,
             screenshot_handle: None,
+            screenshot_instants: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -114,12 +119,35 @@ impl WindowEventProcessor {
 
         let hwnd_val = event.hwnd;
         let app_name = event.name.clone();
+        let screenshot_instants = Arc::clone(&self.screenshot_instants);
+        let screenshot_interval = Duration::from_secs(10); // 5 minutes
 
         let screenshot_task = tokio::task::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(300)); // TODO get this from config or something else
+            // TODO get these from config or something else
+
             loop {
-                interval.tick().await;
-                execute_screenshot_on_interval(hwnd_val, app_name.clone()).await;
+                // This is not that readable so explanation;
+                // We are waiting for a global screenshot interval
+                // and then taking a screenshot if the interval has passed
+                // or else, we are sleeping for the remaining time
+                if should_take_screenshot(
+                    hwnd_val,
+                    screenshot_instants.clone(),
+                    screenshot_interval,
+                ) {
+                    execute_screenshot_on_interval(hwnd_val, app_name.clone()).await;
+
+                    let mut screenshot_instants = screenshot_instants.lock().unwrap();
+                    screenshot_instants.insert(hwnd_val, Instant::now());
+                } else {
+                    tokio::time::sleep(get_remaining_time(
+                        hwnd_val,
+                        &app_name,
+                        &screenshot_instants,
+                        screenshot_interval,
+                    ))
+                    .await;
+                }
             }
         });
 
@@ -173,6 +201,40 @@ impl WindowEventProcessor {
             .ok_or("Failed to retrieve saved app")?;
 
         Ok(saved_app)
+    }
+}
+
+fn get_remaining_time(
+    hwnd_val: isize,
+    app_name: &String,
+    screenshot_instants: &Arc<Mutex<HashMap<isize, Instant>>>,
+    screenshot_interval: Duration,
+) -> Duration {
+    let screenshots = screenshot_instants.lock().unwrap();
+    if let Some(last_time) = screenshots.get(&hwnd_val) {
+        let remaining = screenshot_interval.saturating_sub(last_time.elapsed());
+        println!(
+            "Skipping screenshot for {} - last taken {:?} ago, next in {:?}",
+            app_name,
+            last_time.elapsed(),
+            remaining
+        );
+        remaining
+    } else {
+        screenshot_interval
+    }
+}
+
+fn should_take_screenshot(
+    hwnd_val: isize,
+    screenshot_instants: Arc<Mutex<HashMap<isize, Instant>>>,
+    screenshot_interval: Duration,
+) -> bool {
+    let screenshots = screenshot_instants.lock().unwrap();
+    if let Some(last_time) = screenshots.get(&hwnd_val) {
+        last_time.elapsed() >= screenshot_interval
+    } else {
+        true
     }
 }
 
