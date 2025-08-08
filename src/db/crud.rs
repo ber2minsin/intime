@@ -53,3 +53,18 @@ pub async fn register_window_event(
     .await?;
     Ok(())
 }
+
+pub async fn save_screenshot(
+    db_pool: &sqlx::Pool<sqlx::Sqlite>,
+    image: Vec<u8>,
+    app_id: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO screenshot (app_id, screenshot) VALUES (?, ?)",
+        app_id,
+        image
+    )
+    .execute(db_pool)
+    .await?;
+    Ok(())
+}

@@ -1,7 +1,9 @@
 use crate::core::events::{WindowEvent, WindowForegroundEvent};
-use crate::db::crud::{get_saved_app, register_window_event, save_app, update_app_path};
+use crate::db::crud::{
+    get_saved_app, register_window_event, save_app, save_screenshot, update_app_path,
+};
 use crate::db::models::DBApp;
-use crate::platform::screenshot::{screenshot_window};
+use crate::platform::screenshot::screenshot_window;
 use crate::platform::tracker::set_win_event_hook;
 
 use sqlx::SqlitePool;
@@ -103,24 +105,24 @@ impl WindowEventProcessor {
                     event.event(),
                 )
                 .await;
+
+                if self.current_foreground_window_hwnd != Some(event.hwnd) {
+                    self.current_foreground_window_hwnd = Some(event.hwnd);
+
+                    // Previous screenshot does not need to be run anymore
+                    if let Some(handle) = self.screenshot_handle.take() {
+                        handle.abort();
+                    }
+                    self.schedule_screenshot(event, app.id.unwrap()).await;
+                }
             }
             Err(e) => {
                 eprintln!("Error processing foreground event: {}", e);
             }
         }
-
-        if self.current_foreground_window_hwnd != Some(event.hwnd) {
-            self.current_foreground_window_hwnd = Some(event.hwnd);
-
-            // Previous screenshot does not need to be run anymore
-            if let Some(handle) = self.screenshot_handle.take() {
-                handle.abort();
-            }
-            self.schedule_screenshot(event).await;
-        }
     }
 
-    async fn schedule_screenshot(&mut self, event: &WindowForegroundEvent) {
+    async fn schedule_screenshot(&mut self, event: &WindowForegroundEvent, app_id: i64) {
         println!(
             "Scheduling screenshot for app: Name: {}, Path: {}",
             event.name, event.path
@@ -130,6 +132,7 @@ impl WindowEventProcessor {
         let app_name = event.name.clone();
         let screenshot_instants = Arc::clone(&self.screenshot_instants);
         let screenshot_interval = Duration::from_secs(10); // 5 minutes
+        let db_pool = self.db_pool.clone(); // Cloning the pool is actually recommended in the docs
 
         let screenshot_task = tokio::task::spawn(async move {
             // TODO get these from config or something else
@@ -144,7 +147,7 @@ impl WindowEventProcessor {
                     screenshot_instants.clone(),
                     screenshot_interval,
                 ) {
-                    execute_screenshot_on_interval(hwnd_val, app_name.clone()).await;
+                    perform_screenshot_capture(&db_pool, app_id, hwnd_val, app_name.clone()).await;
 
                     let mut screenshot_instants = screenshot_instants.lock().unwrap();
                     screenshot_instants.insert(hwnd_val, Instant::now());
@@ -233,20 +236,9 @@ fn get_remaining_time(
     }
 }
 
-fn should_take_screenshot(
-    hwnd_val: isize,
-    screenshot_instants: Arc<Mutex<HashMap<isize, Instant>>>,
-    screenshot_interval: Duration,
-) -> bool {
-    let screenshots = screenshot_instants.lock().unwrap();
-    if let Some(last_time) = screenshots.get(&hwnd_val) {
-        last_time.elapsed() >= screenshot_interval
-    } else {
-        true
-    }
-}
-
-async fn execute_screenshot_on_interval(
+async fn perform_screenshot_capture(
+    db_pool: &SqlitePool,
+    app_id: i64,
     hwnd_val: isize,
     app_name: String, // TODO Remove this
 ) {
@@ -263,15 +255,16 @@ async fn execute_screenshot_on_interval(
     match result {
         Ok(Some(image)) => {
             println!("Screenshot taken for app: {}", app_name);
-            // TODO save screenshot to the db
-            // Save to disk for now
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(); // This works for now
 
-            let screenshot_path = format!("screenshots/{}_{}.png", app_name, timestamp);
-            image.save(screenshot_path).unwrap();
+            // Used for debug
+            // let timestamp = std::time::SystemTime::now()
+            //     .duration_since(std::time::UNIX_EPOCH)
+            //     .unwrap()
+            //     .as_secs(); // This works for now
+            // let screenshot_path = format!("screenshots/{}_{}.png", app_name, timestamp);
+            // image.save(screenshot_path).unwrap();
+
+            let _ = save_screenshot(db_pool, (&image).to_vec(), app_id).await;
         }
         Ok(None) => {
             eprintln!("Failed to take screenshot for app: {}", app_name);
@@ -279,5 +272,18 @@ async fn execute_screenshot_on_interval(
         Err(e) => {
             eprintln!("Screenshot task failed for app {}: {}", app_name, e);
         }
+    }
+}
+
+fn should_take_screenshot(
+    hwnd_val: isize,
+    screenshot_instants: Arc<Mutex<HashMap<isize, Instant>>>,
+    screenshot_interval: Duration,
+) -> bool {
+    let screenshots = screenshot_instants.lock().unwrap();
+    if let Some(last_time) = screenshots.get(&hwnd_val) {
+        last_time.elapsed() >= screenshot_interval
+    } else {
+        true
     }
 }
