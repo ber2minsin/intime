@@ -1,7 +1,6 @@
 use image::GenericImageView as _;
 use image::ImageBuffer;
 use image::Rgb;
-use image::Rgba;
 use windows::Win32::Graphics::Gdi::HGDIOBJ;
 use windows::Win32::Storage::Xps::PrintWindow;
 use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;

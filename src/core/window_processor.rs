@@ -1,12 +1,11 @@
 use crate::core::events::{WindowEvent, WindowForegroundEvent};
 use crate::db::crud::{get_saved_app, register_window_event, save_app, update_app_path};
 use crate::db::models::DBApp;
-use crate::platform::screenshot::{self, screenshot_window};
+use crate::platform::screenshot::{screenshot_window};
 use crate::platform::tracker::set_win_event_hook;
 
 use sqlx::SqlitePool;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tokio::time::{Duration, Instant};
