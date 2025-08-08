@@ -1,4 +1,4 @@
-use crate::core::events::WindowEventType;
+use crate::tracker::events::WindowEventType;
 
 use super::models::DBApp;
 pub async fn get_saved_app(db_pool: &sqlx::SqlitePool, name: &str) -> Option<DBApp> {

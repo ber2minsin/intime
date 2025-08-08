@@ -1,10 +1,10 @@
-use crate::core::events::{WindowEvent, WindowForegroundEvent};
 use crate::db::crud::{
     get_saved_app, register_window_event, save_app, save_screenshot, update_app_path,
 };
 use crate::db::models::DBApp;
 use crate::platform::screenshot::screenshot_window;
 use crate::platform::tracker::set_win_event_hook;
+use crate::tracker::events::{WindowEvent, WindowForegroundEvent};
 
 use sqlx::SqlitePool;
 use std::collections::HashMap;

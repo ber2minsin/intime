@@ -12,6 +12,6 @@ pub async fn create_pool(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
                 .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal),
         )
         .await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    sqlx::migrate!("../../migrations").run(&pool).await?;
     Ok(pool)
 }

@@ -26,8 +26,8 @@ use windows::Win32::UI::WindowsAndMessaging::WS_EX_TOOLWINDOW;
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW};
 use windows::core::PWSTR;
 
-use crate::core::events::WindowEvent;
-use crate::core::events::WindowForegroundEvent;
+use crate::tracker::events::WindowEvent;
+use crate::tracker::events::WindowForegroundEvent;
 // For ptr::null_mut() if needed, but PWSTR::null() is better
 
 #[allow(dead_code)] // Allow dead code for now, as this might be used later
