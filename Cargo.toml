@@ -1,32 +1,13 @@
-[package]
-name = "intime"
-version = "0.1.0"
+[workspace]
+members = ["crates/src-tauri", "crates/core"]
+resolver = "2"
+
+[workspace.package]
 edition = "2024"
+license-file = "LICENSE"
+authors = ["ber2 <ber2@gmail.com>"]
 
-[dependencies]
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-windows = { version = "0.61.1", features = [
-    "Win32_Foundation",
-    "Win32_UI_WindowsAndMessaging",
-    "Win32_System_Threading",
-    "Win32_UI_Accessibility",
-    "Win32_Graphics",
-    "Win32_Graphics_Gdi",
-    "Win32_Storage",
-    "Win32_Storage_Xps",
-] }
-scopeguard = "1.2"
-tokio = { version = "1.44", features = ["full"] }
-sqlx = { version = "0.8.6", features = [
-    "sqlite",
-    "runtime-tokio-native-tls",
-    "macros",
-] }
-dotenv = "0.15"
-lazy_static = "1.4.0"
-anyhow = { version = "1.0.95" }
-image = { version = "0.25.6" }
 
-[dev-dependencies]
+[workspace.dev-dependencies]
 sqlx-cli = { version = "0.8.6", features = ["sqlite"] }
+tauri-cli = { version = "2.7.1" }
