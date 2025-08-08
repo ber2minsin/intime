@@ -1,3 +1,5 @@
+use crate::core::events::WindowEventType;
+
 use super::models::DBApp;
 pub async fn get_saved_app(db_pool: &sqlx::SqlitePool, name: &str) -> Option<DBApp> {
     sqlx::query_as!(
@@ -31,5 +33,23 @@ pub async fn update_app_path(
     sqlx::query!("UPDATE app SET path = ? WHERE name = ?", new_path, name,)
         .execute(db_pool)
         .await?;
+    Ok(())
+}
+
+pub async fn register_window_event(
+    db_pool: &sqlx::Pool<sqlx::Sqlite>,
+    app_id: i64,
+    title: String,
+    event: WindowEventType,
+) -> Result<(), sqlx::Error> {
+    let event_type_str = format!("{:?}", event);
+    sqlx::query!(
+        "INSERT INTO window_event (app_id, window_title, event_type) VALUES (?, ?, ?)",
+        app_id,
+        title,
+        event_type_str
+    )
+    .execute(db_pool)
+    .await?;
     Ok(())
 }

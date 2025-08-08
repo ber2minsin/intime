@@ -1,5 +1,5 @@
 use crate::core::events::{WindowEvent, WindowForegroundEvent};
-use crate::db::crud::{get_saved_app, save_app, update_app_path};
+use crate::db::crud::{get_saved_app, register_window_event, save_app, update_app_path};
 use crate::db::models::DBApp;
 use crate::platform::screenshot::{self, screenshot_window};
 use crate::platform::tracker::set_win_event_hook;
@@ -12,6 +12,8 @@ use std::sync::{Arc, Mutex};
 use tokio::time::{Duration, Instant};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage};
+
+use anyhow::Result;
 
 pub struct WindowEventProcessor {
     db_pool: SqlitePool,
@@ -94,6 +96,14 @@ impl WindowEventProcessor {
                     "App in database: ID: {:?}, Name: {}, Path: {}",
                     app.id, app.name, app.path
                 );
+
+                let _ = register_window_event(
+                    &self.db_pool,
+                    app.id.unwrap(),
+                    event.title.clone(),
+                    event.event(),
+                )
+                .await;
             }
             Err(e) => {
                 eprintln!("Error processing foreground event: {}", e);
@@ -154,10 +164,7 @@ impl WindowEventProcessor {
         self.screenshot_handle = Some(screenshot_task);
     }
 
-    async fn find_or_create_app(
-        &self,
-        event: &WindowForegroundEvent,
-    ) -> Result<DBApp, Box<dyn std::error::Error>> {
+    async fn find_or_create_app(&self, event: &WindowForegroundEvent) -> Result<DBApp> {
         if let Some(app) = get_saved_app(&self.db_pool, &event.name).await {
             if app.path != event.path {
                 // Update the app path if it has changed
@@ -198,7 +205,9 @@ impl WindowEventProcessor {
         // Get the saved app with ID
         let saved_app = get_saved_app(&self.db_pool, &event.name)
             .await
-            .ok_or("Failed to retrieve saved app")?;
+            .ok_or(anyhow::anyhow!(
+                "Failed to retrieve saved app after creation"
+            ))?;
 
         Ok(saved_app)
     }
