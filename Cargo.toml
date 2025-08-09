@@ -6,8 +6,3 @@ resolver = "2"
 edition = "2024"
 license-file = "LICENSE"
 authors = ["ber2 <ber2@gmail.com>"]
-
-
-[workspace.dev-dependencies]
-sqlx-cli = { version = "0.8.6", features = ["sqlite"] }
-tauri-cli = { version = "2.7.1" }
