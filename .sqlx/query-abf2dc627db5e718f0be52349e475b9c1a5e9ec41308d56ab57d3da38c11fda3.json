@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO screenshot (app_id, screenshot) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "abf2dc627db5e718f0be52349e475b9c1a5e9ec41308d56ab57d3da38c11fda3"
+}
