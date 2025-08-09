@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT we.app_id as app_id,\n               a.name as app_name,\n               we.window_title as window_title,\n               we.event_type as event_type,\n         CAST(strftime('%s', we.created_at) AS INTEGER) as \"created_at_sec!: i64\"\n        FROM window_event we\n        JOIN app a ON a.id = we.app_id\n     WHERE we.created_at BETWEEN datetime(?1, 'unixepoch') AND datetime(?2, 'unixepoch')\n        ORDER BY we.created_at ASC\n        LIMIT ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "app_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "app_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "window_title",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "event_type",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at_sec!: i64",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "cf294f313a1282c522f424bc2ccab46809221df84674b7391b0c7e353f02982f"
+}

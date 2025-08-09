@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id as \"id!: i64\",\n               app_id as \"app_id!: i64\",\n               screenshot as \"png: Vec<u8>\",\n               CAST(strftime('%s', created_at) AS INTEGER) as \"created_at_sec!: i64\"\n        FROM screenshot\n        WHERE (?1 IS NULL OR app_id = ?1)\n          AND created_at >= datetime(?2, 'unixepoch')\n        ORDER BY created_at ASC\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "app_id!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "png: Vec<u8>",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at_sec!: i64",
+        "ordinal": 3,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "29b61e8ab26edbc89b378ba6df871559f31b70886a2023c332269c1605f66db2"
+}
