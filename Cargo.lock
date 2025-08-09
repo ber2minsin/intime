@@ -2043,9 +2043,12 @@ dependencies = [
 name = "intime-tauri"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "core",
  "log",
  "serde",
  "serde_json",
+ "sqlx",
  "tauri",
  "tauri-build",
  "tauri-plugin-log",
