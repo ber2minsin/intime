@@ -15,6 +15,8 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{DispatchMessageW, GetMessageW, TranslateMessage};
 
 use anyhow::Result;
+use image::{DynamicImage, ImageFormat};
+use std::io::Cursor;
 
 pub struct WindowEventProcessor {
     db_pool: SqlitePool,
@@ -256,15 +258,15 @@ async fn perform_screenshot_capture(
         Ok(Some(image)) => {
             println!("Screenshot taken for app: {}", app_name);
 
-            // Used for debug
-            // let timestamp = std::time::SystemTime::now()
-            //     .duration_since(std::time::UNIX_EPOCH)
-            //     .unwrap()
-            //     .as_secs(); // This works for now
-            // let screenshot_path = format!("screenshots/{}_{}.png", app_name, timestamp);
-            // image.save(screenshot_path).unwrap();
-
-            let _ = save_screenshot(db_pool, (&image).to_vec(), app_id).await;
+            // Encode to PNG before storing (smaller and viewable)
+            let mut png_bytes: Vec<u8> = Vec::new();
+            let dyn_img = DynamicImage::ImageRgb8(image);
+            if let Err(e) = dyn_img.write_to(&mut Cursor::new(&mut png_bytes), ImageFormat::Png) {
+                eprintln!(
+                    "Failed to encode screenshot PNG for app {}: {}",
+                    app_name, e
+                );
+            }
         }
         Ok(None) => {
             eprintln!("Failed to take screenshot for app: {}", app_name);
