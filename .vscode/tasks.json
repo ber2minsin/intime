@@ -1,0 +1,34 @@
+{
+    // VS Code tasks to build/run workspace and manage SQLx migrations
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "cargo: build (workspace)",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "build"
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "label": "cargo: sqlx prepare",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "sqlx",
+                "prepare",
+                "--workspace"
+            ],
+            "options": {
+                "env": {
+                    "DATABASE_URL": "sqlite:${workspaceFolder}\\data\\intime.db"
+                }
+            },
+            "problemMatcher": []
+        }
+    ]
+}

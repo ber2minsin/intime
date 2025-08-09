@@ -1,22 +1,19 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'intime'",
+            "name": "Debug unit tests in library 'app_lib'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=intime"
+                    "--package=intime-tauri"
                 ],
                 "filter": {
-                    "name": "intime",
+                    "name": "app_lib",
                     "kind": "lib"
                 }
             },
@@ -26,15 +23,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'intime'",
+            "name": "Debug executable 'intime-tauri'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=intime",
-                    "--package=intime"
+                    "--bin=intime-tauri",
+                    "--package=intime-tauri"
                 ],
                 "filter": {
-                    "name": "intime",
+                    "name": "intime-tauri",
                     "kind": "bin"
                 }
             },
@@ -44,16 +41,72 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'intime'",
+            "name": "Debug unit tests in executable 'intime-tauri'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=intime",
-                    "--package=intime"
+                    "--bin=intime-tauri",
+                    "--package=intime-tauri"
                 ],
                 "filter": {
-                    "name": "intime",
+                    "name": "intime-tauri",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'core'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=core"
+                ],
+                "filter": {
+                    "name": "core",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'core'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=core",
+                    "--package=core"
+                ],
+                "filter": {
+                    "name": "core",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'core'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=core",
+                    "--package=core"
+                ],
+                "filter": {
+                    "name": "core",
                     "kind": "bin"
                 }
             },
