@@ -100,8 +100,8 @@ function AppInner() {
       const rows = rowsRef.current;
       const nowSec = Math.floor(Date.now() / 1000);
       // reset indexes before rebuilding
-  appToItemIdsRef.current = new Map();
-  idToAppIdRef.current = new Map();
+      appToItemIdsRef.current = new Map();
+      idToAppIdRef.current = new Map();
 
       const mapped = rows.map((r: Row, idx: number) => {
         const start = new Date(r.created_at_sec * 1000);
@@ -121,9 +121,9 @@ function AppInner() {
       });
       setItems(mapped);
 
-  // Aggregation window: use current viewport (not drag-selection)
-  const aggStartSec = Math.floor(startMsInt / 1000);
-  const aggEndSec = Math.ceil(endMsInt / 1000);
+      // Aggregation window: use current viewport (not drag-selection)
+      const aggStartSec = Math.floor(startMsInt / 1000);
+      const aggEndSec = Math.ceil(endMsInt / 1000);
 
       // Compute per-app usage within the aggregation window
       const startSec = aggStartSec;
@@ -200,7 +200,7 @@ function AppInner() {
     } catch { /* noop */ }
   }, [fullImage]);
 
-  // Close on ESC
+  // Global Escape: close full image and clear selection
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -208,11 +208,12 @@ function AppInner() {
           if (cur?.url) URL.revokeObjectURL(cur.url);
           return null;
         });
+        clearSelected();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [clearSelected]);
 
   // Compute currently selected appIds and rowKeys from global selectedIds
   const selectedAppIds = useMemo(() => {
@@ -231,17 +232,17 @@ function AppInner() {
       <Timeline
         items={items}
         onViewportChange={onViewportChange}
-  onSelectionChange={(range) => {
+        onSelectionChange={(range) => {
           if (!range) { clearSelected(); return; }
-              const start = Math.min(range.startMs, range.endMs);
-              const end = Math.max(range.startMs, range.endMs);
-              if (start === end) {
-                // simple click on timeline: select the event under that time, if any
-                const t = start;
-                const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
-                if (found) setSelectedIds([found.id]); else clearSelected();
-                return;
-              }
+          const start = Math.min(range.startMs, range.endMs);
+          const end = Math.max(range.startMs, range.endMs);
+          if (start === end) {
+            // simple click on timeline: select the event under that time, if any
+            const t = start;
+            const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
+            if (found) setSelectedIds([found.id]); else clearSelected();
+            return;
+          }
           // selecting by dragging: choose events that overlap the selection (clamp selection to now)
           const nowMs = Date.now();
           const selStart = Math.min(start, nowMs);
@@ -259,7 +260,7 @@ function AppInner() {
             // overlap if max(start) < min(end)
             return Math.max(a, selStart) < Math.min(b, selEnd);
           }).map(it => it.id);
-              setSelectedIds(ids);
+          setSelectedIds(ids);
         }}
         onOpenFullImage={handleOpenFullImage}
         selectedIds={selectedIds}

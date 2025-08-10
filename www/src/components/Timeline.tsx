@@ -268,6 +268,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                 }
             } else if (e.key === 'Escape') {
                 // Clear selection overlay and notify parent via selRange effect
+                notifySelectionRef.current = true;
                 setSelRange(null);
             } else if ((e.code === 'F12' || e.key === 'F12') && hoverImg && hoverImgBytesRef.current) {
                 // When previewing, F12 opens full image view
