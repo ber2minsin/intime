@@ -36,13 +36,13 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
 
     const totalDuration = rows.reduce((acc, r) => acc + (r.durationMs || 0), 0);
 
-    // move selected row to the top while preserving others order
+    // move selected rows to the top while preserving original order
     const sortedRows = (() => {
         if (!selectedKeys || selectedKeys.size === 0) return rows;
         const sel: WindowUsage[] = [];
         const rest: WindowUsage[] = [];
         for (const r of rows) {
-            const key = `${r.appId ?? 0}::${r.title}`;
+            const key = r.id;
             if (selectedKeys.has(key)) sel.push(r); else rest.push(r);
         }
         return [...sel, ...rest];
@@ -74,13 +74,13 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedRows.map((r, i) => {
+                        {sortedRows.map((r) => {
                             const key = r.id;
                             const hasSel = !!selectedKeys && selectedKeys.size > 0;
                             const isSelected = !hasSel || selectedKeys!.has(key);
                             return (
                                 <tr
-                                    key={`${r.title}-${i}`}
+                                    key={r.id}
                                     className="border-b border-gray-800/60 hover:bg-gray-800/40 cursor-pointer"
                                     style={{ opacity: isSelected ? 1 : 0.4 }}
                                     onClick={() => onSelectRow?.(hasSel && selectedKeys!.has(key) && selectedKeys!.size === 1 ? null : key)}

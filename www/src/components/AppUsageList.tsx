@@ -16,11 +16,22 @@ type Props = {
 
 const AppUsageList: React.FC<Props> = ({ usages, selectedAppIds, onSelectApp }) => {
     const total = usages.reduce((s, u) => s + u.durationMs, 0);
+    // Selected apps to the top while preserving original order
+    const ordered = (() => {
+        if (!selectedAppIds || selectedAppIds.size === 0) return usages;
+        const sel: typeof usages = [];
+        const rest: typeof usages = [];
+        for (const u of usages) {
+            if (selectedAppIds.has(u.appId)) sel.push(u); else rest.push(u);
+        }
+        return [...sel, ...rest];
+    })();
+
     return (
         <div className="bg-gray-900 border border-gray-800 rounded p-3 w-full max-w-xs min-w-0 shrink-0 h-full overflow-auto">
             <div className="mb-2 text-sm text-gray-400">Active time by app (excludes empty time)</div>
             <ul className="divide-y divide-gray-800 overflow-auto pr-1">
-                {usages.map((u) => {
+                {ordered.map((u) => {
                     const hasSel = !!selectedAppIds && selectedAppIds.size > 0;
                     const isSelected = !hasSel || selectedAppIds!.has(u.appId);
                     return (
