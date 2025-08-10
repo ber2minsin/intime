@@ -233,14 +233,33 @@ function AppInner() {
         onViewportChange={onViewportChange}
   onSelectionChange={(range) => {
           if (!range) { clearSelected(); return; }
-          // selecting by dragging: choose events whose midpoint falls inside
-          const start = Math.min(range.startMs, range.endMs);
-          const end = Math.max(range.startMs, range.endMs);
+              const start = Math.min(range.startMs, range.endMs);
+              const end = Math.max(range.startMs, range.endMs);
+              if (start === end) {
+                // simple click on timeline: select the event under that time, if any
+                const t = start;
+                const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
+                if (found) setSelectedIds([found.id]); else clearSelected();
+                return;
+              }
+          // selecting by dragging: choose events that overlap the selection (clamp selection to now)
+          const nowMs = Date.now();
+          const selStart = Math.min(start, nowMs);
+          const selEnd = Math.min(end, nowMs);
+          if (selEnd <= selStart) {
+            // selection entirely in future -> treat as click at now
+            const t = nowMs;
+            const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
+            if (found) setSelectedIds([found.id]); else clearSelected();
+            return;
+          }
           const ids = items.filter(it => {
-            const mid = (it.start.getTime() + it.end.getTime()) / 2;
-            return mid >= start && mid <= end;
+            const a = it.start.getTime();
+            const b = it.end.getTime();
+            // overlap if max(start) < min(end)
+            return Math.max(a, selStart) < Math.min(b, selEnd);
           }).map(it => it.id);
-          setSelectedIds(ids);
+              setSelectedIds(ids);
         }}
         onOpenFullImage={handleOpenFullImage}
         selectedIds={selectedIds}

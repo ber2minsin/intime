@@ -67,6 +67,17 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     const selectingRef = useRef<boolean>(false);
     const selectStartXRef = useRef<number>(0);
     const [selRange, setSelRange] = useState<{ startMs: number; endMs: number } | null>(null);
+    // Only notify parent when selection was changed by Timeline interactions
+    const notifySelectionRef = useRef<boolean>(false);
+    const onSelChangeRef = useRef<((r: { startMs: number; endMs: number } | null) => void) | undefined>(undefined);
+    useEffect(() => { onSelChangeRef.current = onSelectionChange; }, [onSelectionChange]);
+    useEffect(() => {
+        if (!notifySelectionRef.current) return;
+        notifySelectionRef.current = false;
+        const cb = onSelChangeRef.current;
+        if (!cb) return;
+        cb(selRange);
+    }, [selRange]);
 
     // msPerPixel already in state
 
@@ -255,6 +266,9 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     const newStart = nowMs - (width * msPerPixel) / 2;
                     setVisibleStartMs(newStart);
                 }
+            } else if (e.key === 'Escape') {
+                // Clear selection overlay and notify parent via selRange effect
+                setSelRange(null);
             } else if ((e.code === 'F12' || e.key === 'F12') && hoverImg && hoverImgBytesRef.current) {
                 // When previewing, F12 opens full image view
                 e.preventDefault();
@@ -279,8 +293,8 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
             selectStartXRef.current = x;
             selectingRef.current = true;
             const startMs = xToTime(x);
+            notifySelectionRef.current = true;
             setSelRange({ startMs, endMs: startMs });
-            onSelectionChange?.({ startMs, endMs: startMs });
         };
 
         const onPointerMove = (e: PointerEvent) => {
@@ -292,26 +306,27 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
             const b = Math.max(x0, x);
             const startMs = xToTime(a);
             const endMs = xToTime(b);
+            notifySelectionRef.current = true;
             setSelRange({ startMs, endMs });
-            onSelectionChange?.({ startMs, endMs });
         };
 
         const onPointerUp = (e: PointerEvent) => {
             if (!selectingRef.current) return;
             selectingRef.current = false;
             el.releasePointerCapture(e.pointerId);
-            // normalize selection; if tiny drag treat as click to clear
+            // normalize selection; if tiny drag, treat as click at that time (zero-length selection)
             setSelRange((cur) => {
                 if (!cur) return null;
                 const pxA = timeToX(cur.startMs);
                 const pxB = timeToX(cur.endMs);
                 if (Math.abs(pxA - pxB) < 3) {
-                    onSelectionChange?.(null);
-                    return null;
+                    const t = Math.min(cur.startMs, cur.endMs);
+                    notifySelectionRef.current = true;
+                    return { startMs: t, endMs: t };
                 }
                 const startMs = Math.min(cur.startMs, cur.endMs);
                 const endMs = Math.max(cur.startMs, cur.endMs);
-                onSelectionChange?.({ startMs, endMs });
+                notifySelectionRef.current = true;
                 return { startMs, endMs };
             });
         };
