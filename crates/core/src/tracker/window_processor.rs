@@ -267,6 +267,8 @@ async fn perform_screenshot_capture(
                     app_name, e
                 );
             }
+
+            let _ = save_screenshot(db_pool, dyn_img.into_bytes(), app_id).await;
         }
         Ok(None) => {
             eprintln!("Failed to take screenshot for app: {}", app_name);
