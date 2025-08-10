@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Timeline from "./components/Timeline";
 import AppUsageList from "./components/AppUsageList";
@@ -10,6 +10,8 @@ export default function App() {
   const [items, setItems] = useState<Array<{ id: string; start: Date; end: Date; name: string; color?: string }>>([]);
   const [usages, setUsages] = useState<Array<{ appId: number; appName: string; durationMs: number; percent: number; color?: string }>>([]);
   const [windowRows, setWindowRows] = useState<Array<{ title: string; startMs: number; endMs: number; durationMs: number }>>([]);
+  const [selection, setSelection] = useState<{ startMs: number; endMs: number } | null>(null);
+  const [fullImage, setFullImage] = useState<{ url: string; createdAtSec?: number } | null>(null);
 
   // In-memory cache for immutable past events
   const rowsRef = useRef<Row[]>([]);
@@ -105,9 +107,15 @@ export default function App() {
       });
       setItems(mapped);
 
-      // Compute per-app usage within the current viewport, excluding empty time.
-      const startSec = Math.floor(startMsInt / 1000);
-      const endSec = Math.ceil(endMsInt / 1000);
+      // Choose aggregation window: selection if present, else whole dataset
+      // If selection absent, use full cached span to compute totals
+      const sel = selection;
+      const aggStartSec = sel ? Math.floor(Math.min(sel.startMs, sel.endMs) / 1000) : (minCachedSecRef.current ?? 0);
+      const aggEndSec = sel ? Math.ceil(Math.max(sel.startMs, sel.endMs) / 1000) : (lastCachedSecRef.current ?? Math.floor(Date.now() / 1000));
+
+      // Compute per-app usage within the aggregation window
+      const startSec = aggStartSec;
+      const endSec = aggEndSec;
       const acc = new Map<number, { appName: string; durationMs: number }>();
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
@@ -132,7 +140,7 @@ export default function App() {
       usageArr.sort((a, b) => b.percent - a.percent);
       setUsages(usageArr);
 
-      // Compute per-window-title usage (start, end, duration) within viewport
+      // Compute per-window-title usage (start, end, duration) within aggregation window
       type WinAgg = { startMs: number; endMs: number; durationMs: number };
       const wmap = new Map<string, WinAgg>();
       for (let i = 0; i < rows.length; i++) {
@@ -162,15 +170,72 @@ export default function App() {
     } catch (e) {
       console.error("fetch_window_events failed", e);
     }
+  }, [selection]);
+
+  // Initial load: if no selection, fetch a broad time range to build full cache
+  useEffect(() => {
+    (async () => {
+      if (rowsRef.current.length > 0) return;
+      // Fetch all known data in chunks. If backend supports unlimited, you can widen further.
+      // Here we fetch last ~180 days as a reasonable default; adjust if needed.
+      const now = Date.now();
+      const days180 = 180 * 24 * 60 * 60 * 1000;
+      const start = Math.max(0, now - days180);
+      await onViewportChange(start, now);
+    })();
+  }, [onViewportChange]);
+
+  // Open full-size image from Timeline (F12 while previewing)
+  const handleOpenFullImage = useCallback((payload: { bytes: Uint8Array; createdAtSec?: number }) => {
+    try {
+      if (fullImage?.url) URL.revokeObjectURL(fullImage.url);
+      // Copy into a fresh Uint8Array to ensure an ArrayBuffer-backed BlobPart
+      const copy = new Uint8Array(payload.bytes.length);
+      copy.set(payload.bytes);
+      const blob = new Blob([copy], { type: 'image/png' });
+      const url = URL.createObjectURL(blob);
+      setFullImage({ url, createdAtSec: payload.createdAtSec });
+    } catch { /* noop */ }
+  }, [fullImage]);
+
+  // Close on ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFullImage((cur) => {
+          if (cur?.url) URL.revokeObjectURL(cur.url);
+          return null;
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   return (
     <div className="bg-gray-950 text-gray-100 h-screen space-y-4 mx-auto px-4 py-4 overflow-hidden flex flex-col">
-      <Timeline items={items} onViewportChange={onViewportChange} />
-      <div className="flex flex-1 overflow-auto gap-4 h-full">
-        <AppUsageList usages={usages} />
-        <WindowUsageTable rows={windowRows} />
-      </div>
+      <Timeline items={items} onViewportChange={onViewportChange} onSelectionChange={setSelection} onOpenFullImage={handleOpenFullImage} />
+      {fullImage ? (
+        <div className="flex-1 overflow-auto bg-black/70 rounded border border-gray-800 relative">
+          <button
+            className="absolute top-2 right-2 z-10 px-2 py-1 text-xs rounded bg-gray-800 text-gray-100 border border-gray-700 hover:bg-gray-700"
+            onClick={() => setFullImage((cur) => { if (cur?.url) URL.revokeObjectURL(cur.url); return null; })}
+            aria-label="Close full image"
+            title="Close (Esc)"
+          >Close</button>
+          <div className="p-4">
+            <img src={fullImage.url} alt="screenshot" className="block" />
+            {fullImage.createdAtSec && (
+              <div className="mt-2 text-xs text-gray-300">Captured: {new Date(fullImage.createdAtSec * 1000).toLocaleString()}</div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 overflow-auto gap-4 h-full">
+          <AppUsageList usages={usages} />
+          <WindowUsageTable rows={windowRows} />
+        </div>
+      )}
     </div>
   );
 }

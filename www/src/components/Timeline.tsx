@@ -19,9 +19,15 @@ const ALLOWED_STEPS_MIN = [
 ] as const;
 
 type ItemInput = { id?: string; start: Date | string | number; end: Date | string | number; name?: string; label?: string; color?: string };
-type TimelineProps = { items?: ItemInput[]; children?: React.ReactNode; onViewportChange?: (startMs: number, endMs: number) => void };
+type TimelineProps = {
+    items?: ItemInput[];
+    children?: React.ReactNode;
+    onViewportChange?: (startMs: number, endMs: number) => void;
+    onSelectionChange?: (range: { startMs: number; endMs: number } | null) => void;
+    onOpenFullImage?: (payload: { bytes: Uint8Array; createdAtSec?: number }) => void;
+};
 
-const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportChange }) => {
+const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportChange, onSelectionChange, onOpenFullImage }) => {
 
     // Smooth zoom: ms per pixel, initialize around "hours" (1h per 100px)
     const [msPerPixel, setMsPerPixel] = useState<number>(() => (60 * 60_000) / TICK_WIDTH);
@@ -47,6 +53,8 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     const [hoverClientY, setHoverClientY] = useState<number | null>(null);
     const [hoverImg, setHoverImg] = useState<string | null>(null);
     const hoverImgUrlRef = useRef<string | null>(null);
+    const hoverImgBytesRef = useRef<Uint8Array | null>(null);
+    const hoverCreatedAtRef = useRef<number | undefined>(undefined);
     const hoverFetchRef = useRef<number | null>(null);
     // debug state removed
     const [width, setWidth] = useState(1200);
@@ -54,9 +62,10 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     // leftmost visible time in ms
     const [visibleStartMs, setVisibleStartMs] = useState(() => Date.now() - (600 * 60_000));
 
-    // dragging state
-    type DragState = { mode: "pan" | null; startX: number; startVisibleStartMs: number };
-    const dragState = useRef<DragState>({ mode: null, startX: 0, startVisibleStartMs: 0 });
+    // selection dragging state
+    const selectingRef = useRef<boolean>(false);
+    const selectStartXRef = useRef<number>(0);
+    const [selRange, setSelRange] = useState<{ startMs: number; endMs: number } | null>(null);
 
     // msPerPixel already in state
 
@@ -211,9 +220,13 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                 if (hoverImgUrlRef.current) URL.revokeObjectURL(hoverImgUrlRef.current);
                 hoverImgUrlRef.current = url;
                 setHoverImg(url);
+                hoverImgBytesRef.current = u8;
+                hoverCreatedAtRef.current = res.created_at_sec as number | undefined;
             } catch (err) {
                 if (hoverImgUrlRef.current) { URL.revokeObjectURL(hoverImgUrlRef.current); hoverImgUrlRef.current = null; }
                 setHoverImg(null);
+                hoverImgBytesRef.current = null;
+                hoverCreatedAtRef.current = undefined;
                 // debug removed
             }
         }, 200);
@@ -241,46 +254,65 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     const newStart = nowMs - (width * msPerPixel) / 2;
                     setVisibleStartMs(newStart);
                 }
+            } else if ((e.code === 'F12' || e.key === 'F12') && hoverImg && hoverImgBytesRef.current) {
+                // When previewing, F12 opens full image view
+                e.preventDefault();
+                onOpenFullImage?.({ bytes: hoverImgBytesRef.current, createdAtSec: hoverCreatedAtRef.current });
             }
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [msPerPixel, width, glueNow, nowMs]);
+    }, [msPerPixel, width, glueNow, nowMs, hoverImg, onOpenFullImage]);
 
 
-    // pointer handlers for pan only
+    // pointer handlers: left-drag to select a time range
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
 
         const onPointerDown = (e: PointerEvent) => {
-            // only left button (primary)
-            if (e.button !== 0) return;
-            if (glueNow) return; // disable drag when glued
+            if (e.button !== 0) return; // only left
             el.setPointerCapture(e.pointerId);
             const rect = el.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            dragState.current.mode = "pan";
-            dragState.current.startX = x;
-            dragState.current.startVisibleStartMs = visibleStartMs;
+            const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+            selectStartXRef.current = x;
+            selectingRef.current = true;
+            const startMs = xToTime(x);
+            setSelRange({ startMs, endMs: startMs });
+            onSelectionChange?.({ startMs, endMs: startMs });
         };
 
         const onPointerMove = (e: PointerEvent) => {
-            if (!dragState.current.mode) return;
-            if (glueNow) return; // do not pan while glued
+            if (!selectingRef.current) return;
             const rect = el.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const dx = x - dragState.current.startX;
-            // dx positive means we moved pointer right -> pan earlier times (visibleStart decreases)
-            const newVisible = dragState.current.startVisibleStartMs - dx * msPerPixel;
-            setVisibleStartMs(newVisible);
+            const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+            const x0 = selectStartXRef.current;
+            const a = Math.min(x0, x);
+            const b = Math.max(x0, x);
+            const startMs = xToTime(a);
+            const endMs = xToTime(b);
+            setSelRange({ startMs, endMs });
+            onSelectionChange?.({ startMs, endMs });
         };
 
         const onPointerUp = (e: PointerEvent) => {
-            const mode = dragState.current.mode;
-            if (!mode) return;
-            dragState.current.mode = null;
+            if (!selectingRef.current) return;
+            selectingRef.current = false;
             el.releasePointerCapture(e.pointerId);
+            // normalize selection; if tiny drag treat as click to clear
+            setSelRange((cur) => {
+                if (!cur) return null;
+                const pxA = timeToX(cur.startMs);
+                const pxB = timeToX(cur.endMs);
+                if (Math.abs(pxA - pxB) < 3) {
+                    onSelectionChange?.(null);
+                    return null;
+                }
+                const startMs = Math.min(cur.startMs, cur.endMs);
+                const endMs = Math.max(cur.startMs, cur.endMs);
+                onSelectionChange?.({ startMs, endMs });
+                return { startMs, endMs };
+            });
         };
 
         el.addEventListener("pointerdown", onPointerDown);
@@ -294,7 +326,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
             el.removeEventListener("pointerup", onPointerUp);
             el.removeEventListener("pointercancel", onPointerUp);
         };
-    }, [visibleStartMs, msPerPixel, glueNow]);
+    }, [visibleStartMs, msPerPixel]);
 
     // collect items from children <Timeline.Item />
     const childItems: ItemInput[] = React.Children.toArray(children).flatMap((child) => {
@@ -488,6 +520,17 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                             style={{ left: `${hoverX}px` }}
                         />
                     )}
+                    {/* selection range overlay */}
+                    {selRange && (
+                        <div
+                            className="absolute top-0 bottom-0 bg-cyan-400/10 border-x border-cyan-400/40 z-10"
+                            style={{
+                                left: `${Math.min(timeToX(selRange.startMs), timeToX(selRange.endMs))}px`,
+                                width: `${Math.abs(timeToX(selRange.endMs) - timeToX(selRange.startMs))}px`,
+                            }}
+                        />
+                    )}
+
                     {/* in-timeline preview removed to avoid clipping */}
                     {/* debug badge removed */}
                 </div>

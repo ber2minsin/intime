@@ -30,6 +30,8 @@ const WindowUsageTable: React.FC<Props> = ({ rows }) => {
     const END_W = 160;
     const DUR_W = 96;
 
+    const totalDuration = rows.reduce((acc, r) => acc + (r.durationMs || 0), 0);
+
     return (
         <div className="bg-gray-900 border border-gray-800 rounded h-full overflow-auto">
             <div className="px-3 py-2 text-sm text-gray-400">Active windows</div>
@@ -48,6 +50,12 @@ const WindowUsageTable: React.FC<Props> = ({ rows }) => {
                             <th className="text-left font-medium px-3 py-2">End</th>
                             <th className="text-right font-medium px-3 py-2">Duration</th>
                         </tr>
+                        <tr className="border-b border-gray-700 bg-gray-800/40">
+                            <th className="text-left font-semibold px-3 py-2 text-gray-100">Total</th>
+                            <th className="px-3 py-2 text-gray-400"></th>
+                            <th className="px-3 py-2 text-gray-400"></th>
+                            <th className="px-3 py-2 text-right font-mono font-semibold text-amber-300">{fmtDuration(totalDuration)}</th>
+                        </tr>
                     </thead>
                     <tbody>
                         {rows.map((r, i) => (
@@ -64,6 +72,7 @@ const WindowUsageTable: React.FC<Props> = ({ rows }) => {
                             </tr>
                         )}
                     </tbody>
+                    {/* total row moved to the top (header) */}
                 </table>
             </div>
         </div>
