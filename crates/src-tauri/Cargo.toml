@@ -31,5 +31,6 @@ sqlx = { version = "0.8.6", features = [
 base64 = "0.22"
 anyhow = "1.0"
 dotenv = "0.15"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 intime_core = { package = "core", path = "../core" }

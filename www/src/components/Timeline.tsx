@@ -1,5 +1,6 @@
 // Timeline (single-lane)
 import React, { useState, useRef, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import TimelineItem, { type TimelineItemProps } from "./TimelineItem";
 
 /** Public API:
@@ -39,6 +40,13 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     const zoomLabel: ZoomLabel = stepMinutes >= 43200 ? "months" : stepMinutes >= 1440 ? "days" : stepMinutes >= 60 ? "hours" : "minutes";
 
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const [hoverX, setHoverX] = useState<number | null>(null);
+    const [hoverY, setHoverY] = useState<number | null>(null);
+    const [hoverMs, setHoverMs] = useState<number | null>(null);
+    const [hoverImg, setHoverImg] = useState<string | null>(null);
+    const hoverImgUrlRef = useRef<string | null>(null);
+    const hoverFetchRef = useRef<number | null>(null);
+    const [fetchDebug, setFetchDebug] = useState<{ status: 'idle' | 'pending' | 'success' | 'error'; size?: number; createdAtSec?: number }>({ status: 'idle' });
     const [width, setWidth] = useState(1200);
 
     // leftmost visible time in ms
@@ -147,6 +155,82 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         el.addEventListener("wheel", onWheel, { passive: false });
         return () => el.removeEventListener("wheel", onWheel);
     }, [msPerPixel, xToTime]); // note: xToTime closes visibleStartMs but it's fine (recreated when visibleStartMs changes)
+
+    // hover: track x and debounce screenshot fetch
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const onMove = (e: PointerEvent) => {
+            const rect = el.getBoundingClientRect();
+            const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+            setHoverX(x);
+            const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+            setHoverY(y);
+            setHoverMs(xToTime(x));
+            console.debug('[Timeline] move', { x, y, ms: xToTime(x) });
+        };
+        const onLeave = () => {
+            setHoverX(null);
+            setHoverY(null);
+            setHoverMs(null);
+            if (hoverImgUrlRef.current) {
+                URL.revokeObjectURL(hoverImgUrlRef.current);
+                hoverImgUrlRef.current = null;
+            }
+            setHoverImg(null);
+            setFetchDebug({ status: 'idle' });
+            console.debug('[Timeline] leave');
+        };
+        el.addEventListener("pointermove", onMove);
+        el.addEventListener("pointerleave", onLeave);
+        return () => {
+            el.removeEventListener("pointermove", onMove);
+            el.removeEventListener("pointerleave", onLeave);
+        };
+    }, [xToTime]);
+
+    useEffect(() => {
+        // debounce fetch to avoid spamming on every pixel movement
+        if (hoverMs == null) return;
+        if (hoverFetchRef.current) window.clearTimeout(hoverFetchRef.current);
+        hoverFetchRef.current = window.setTimeout(async () => {
+            try {
+                setFetchDebug({ status: 'pending' });
+                console.debug('[Timeline] invoke get_nearest_screenshot', { ts_ms: Math.floor(hoverMs) });
+                // appId intentionally null for global nearest; can be enhanced to infer from hovered item
+                const res: any = await invoke("get_nearest_screenshot", { tsMs: Math.floor(hoverMs), appId: null });
+                if (res && res.png) {
+                    // res.png is expected to be a Uint8Array or array of bytes
+                    const bytes = res.png instanceof Uint8Array ? res.png : new Uint8Array(res.png);
+                    const blob = new Blob([bytes], { type: "image/png" });
+                    const url = URL.createObjectURL(blob);
+                    if (hoverImgUrlRef.current) URL.revokeObjectURL(hoverImgUrlRef.current);
+                    hoverImgUrlRef.current = url;
+                    setHoverImg(url);
+                    setFetchDebug({ status: 'success', size: bytes.length, createdAtSec: res.created_at_sec });
+                    console.debug('[Timeline] screenshot ok', { size: bytes.length, created_at_sec: res.created_at_sec });
+                } else {
+                    setHoverImg(null);
+                    setFetchDebug({ status: 'success', size: 0, createdAtSec: undefined });
+                    console.debug('[Timeline] screenshot empty');
+                }
+            } catch (err) {
+                setHoverImg(null);
+                setFetchDebug({ status: 'error' });
+                console.error('[Timeline] screenshot error', err);
+            }
+        }, 200);
+        return () => {
+            if (hoverFetchRef.current) window.clearTimeout(hoverFetchRef.current);
+        };
+    }, [hoverMs]);
+
+    // cleanup object URL on unmount
+    useEffect(() => {
+        return () => {
+            if (hoverImgUrlRef.current) URL.revokeObjectURL(hoverImgUrlRef.current);
+        };
+    }, []);
 
     // keyboard shortcut: Space => go to now
     useEffect(() => {
@@ -351,7 +435,22 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                         ))}
                     </div>
                     {/* single lane items */}
-                    <div className="relative h-full">
+                    <div className="relative h-full" onPointerMove={(e) => {
+                        const el = containerRef.current;
+                        if (!el) return;
+                        const rect = el.getBoundingClientRect();
+                        const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                        const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+                        setHoverX(x);
+                        setHoverY(y);
+                        setHoverMs(xToTime(x));
+                    }} onPointerLeave={() => {
+                        setHoverX(null);
+                        setHoverY(null);
+                        setHoverMs(null);
+                        if (hoverImgUrlRef.current) { URL.revokeObjectURL(hoverImgUrlRef.current); hoverImgUrlRef.current = null; }
+                        setHoverImg(null);
+                    }}>
                         {itemList.map((it, idx) => {
                             const left = timeToX(it.start.getTime());
                             const nowX = timeToX(nowMs);
@@ -384,8 +483,35 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                         className="absolute top-0 bottom-0 border-r-2 border-red-500/80 z-20"
                         style={{ left: `${timeToX(nowMs)}px` }}
                     />
+                    {hoverX != null && (
+                        <div
+                            className="absolute top-0 bottom-0 border-r border-cyan-400/70 z-20"
+                            style={{ left: `${hoverX}px` }}
+                        />
+                    )}
+                    {hoverX != null && hoverY != null && hoverImg && (
+                        <div
+                            className="absolute z-30"
+                            style={{
+                                left: Math.max(8, Math.min(hoverX + 12, width - 160)),
+                                top: Math.max(8, Math.min(hoverY + 12, 160)),
+                            }}
+                        >
+                            <div className="rounded border border-gray-700 bg-gray-900/95 shadow-lg p-1">
+                                <img src={hoverImg} alt="preview" className="max-w-[140px] max-h-[100px] object-contain" />
+                            </div>
+                        </div>
+                    )}
+                    {/* debug badge */}
+                    <div className="absolute top-1 right-1 z-20 text-[10px] text-gray-300 bg-gray-900/80 border border-gray-700 rounded px-1 py-0.5">
+                        {fetchDebug.status}
+                        {fetchDebug.status === 'success' && (
+                            <span className="ml-1 text-gray-400">{fetchDebug.size || 0}B{fetchDebug.createdAtSec ? ` @${fetchDebug.createdAtSec}` : ''}</span>
+                        )}
+                    </div>
                 </div>
             </div>
+            {/* end hover preview */}
 
             {/* controls below timeline: pan (left) and zoom (right) */}
             <div className="mt-2 flex items-center justify-between">

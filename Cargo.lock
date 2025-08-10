@@ -2047,6 +2047,7 @@ dependencies = [
  "base64 0.22.1",
  "core",
  "dotenv",
+ "image",
  "log",
  "serde",
  "serde_json",

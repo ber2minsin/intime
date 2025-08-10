@@ -268,7 +268,8 @@ async fn perform_screenshot_capture(
                 );
             }
 
-            let _ = save_screenshot(db_pool, dyn_img.into_bytes(), app_id).await;
+            // Store PNG bytes in DB (was raw bytes before; this fixes blob format)
+            let _ = save_screenshot(db_pool, png_bytes, app_id).await;
         }
         Ok(None) => {
             eprintln!("Failed to take screenshot for app: {}", app_name);
