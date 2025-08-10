@@ -23,6 +23,14 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
 
     // Smooth zoom: ms per pixel, initialize around "hours" (1h per 100px)
     const [msPerPixel, setMsPerPixel] = useState<number>(() => (60 * 60_000) / TICK_WIDTH);
+    // current time ticker (for moving now marker and glue)
+    const [nowMs, setNowMs] = useState<number>(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setNowMs(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, []);
+    // glue right edge of viewport to now
+    const [glueNow, setGlueNow] = useState<boolean>(false);
     // Choose a tick step (in minutes) close to current msPerPixel
     const desiredMinutes = (msPerPixel * TICK_WIDTH) / 60_000;
     const stepMinutes: number = ALLOWED_STEPS_MIN.reduce((best, cur) => {
@@ -72,8 +80,36 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
 
     // pan helper: positive dx pans to earlier times (left), negative to later (right)
     const panByPx = (dx: number) => {
+        if (glueNow) return; // disable pan when glued to now
         setVisibleStartMs((s) => s - dx * msPerPixel);
     };
+
+    // helper: zoom by factor, respecting glue-to-now (anchor right edge)
+    const zoomBy = (factor: number, aroundX: number = width / 2) => {
+        const next = Math.max(MIN_MS_PER_PX, Math.min(msPerPixel * factor, MAX_MS_PER_PX));
+        if (glueNow) {
+            setMsPerPixel(next);
+            setVisibleStartMs(nowMs - width * next);
+        } else {
+            zoomAt(aroundX, factor);
+        }
+    };
+
+    // jump to "now" by centering current time in the viewport
+    const goToNow = () => {
+        if (glueNow) {
+            setVisibleStartMs(nowMs - width * msPerPixel);
+        } else {
+            const newStart = nowMs - (width * msPerPixel) / 2;
+            setVisibleStartMs(newStart);
+        }
+    };
+
+    // when glued, continuously anchor right edge to now
+    useEffect(() => {
+        if (!glueNow) return;
+        setVisibleStartMs(nowMs - width * msPerPixel);
+    }, [glueNow, nowMs, msPerPixel, width]);
 
     // notify viewport changes (debounced)
     useEffect(() => {
@@ -98,10 +134,11 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
             if (e.ctrlKey) {
                 // smooth zoom around mouseX
                 const factor = Math.exp(e.deltaY * 0.0012); // sensitivity
-                zoomAt(mouseX, factor);
+                zoomBy(factor, mouseX);
             } else {
                 // horizontal pan: deltaY -> move timeline left/right
                 // deltaY positive => move towards later times (shift visibleStart forward)
+                if (glueNow) return; // ignore pan when glued
                 const deltaMs = e.deltaY * msPerPixel * 1.5; // 1.5 speed factor
                 setVisibleStartMs((s) => s + deltaMs);
             }
@@ -111,6 +148,24 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         return () => el.removeEventListener("wheel", onWheel);
     }, [msPerPixel, xToTime]); // note: xToTime closes visibleStartMs but it's fine (recreated when visibleStartMs changes)
 
+    // keyboard shortcut: Space => go to now
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.code === "Space" || e.key === " ") {
+                e.preventDefault();
+                if (glueNow) {
+                    setVisibleStartMs(nowMs - width * msPerPixel);
+                } else {
+                    const newStart = nowMs - (width * msPerPixel) / 2;
+                    setVisibleStartMs(newStart);
+                }
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [msPerPixel, width, glueNow, nowMs]);
+
+
     // pointer handlers for pan only
     useEffect(() => {
         const el = containerRef.current;
@@ -119,6 +174,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         const onPointerDown = (e: PointerEvent) => {
             // only left button (primary)
             if (e.button !== 0) return;
+            if (glueNow) return; // disable drag when glued
             el.setPointerCapture(e.pointerId);
             const rect = el.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -129,6 +185,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
 
         const onPointerMove = (e: PointerEvent) => {
             if (!dragState.current.mode) return;
+            if (glueNow) return; // do not pan while glued
             const rect = el.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const dx = x - dragState.current.startX;
@@ -155,7 +212,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
             el.removeEventListener("pointerup", onPointerUp);
             el.removeEventListener("pointercancel", onPointerUp);
         };
-    }, [visibleStartMs, msPerPixel]);
+    }, [visibleStartMs, msPerPixel, glueNow]);
 
     // collect items from children <Timeline.Item />
     const childItems: ItemInput[] = React.Children.toArray(children).flatMap((child) => {
@@ -246,18 +303,18 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     };
 
     return (
-        <div className="p-4 bg-gray-950 min-h-screen text-gray-100">
+        <div>
             <div
                 ref={containerRef}
-                className="relative h-48 bg-gray-900 border border-gray-800 rounded overflow-hidden select-none"
+                className="relative h-40 bg-gray-900 border border-gray-800 rounded overflow-hidden select-none"
                 style={{ userSelect: "none" }}
             >
                 {/* time labels + vertical lines */}
-                <div className="absolute top-0 left-0 right-0 h-10 overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-8 overflow-hidden">
                     {ticks.map((t) => (
                         <div
                             key={t.ms}
-                            className="absolute top-0 h-10 border-r border-gray-700 px-2 flex items-center justify-center"
+                            className="absolute top-0 h-8 border-r border-gray-700 px-2 flex items-center justify-center"
                             style={{ left: `${timeToX(t.ms)}px`, width: `${Math.max(1, widthForTick(t))}px` }}
                         >
                             <div className="text-xs text-gray-400">
@@ -272,7 +329,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                 </div>
 
                 {/* grid background (vertical lines) */}
-                <div className="absolute top-10 left-0 right-0 bottom-0" style={{ overflow: "hidden" }}>
+                <div className="absolute top-8 left-0 right-0 bottom-0" style={{ overflow: "hidden" }}>
                     {/* vertical columns */}
                     <div className="absolute top-0 left-0 right-0 bottom-0">
                         {ticks.map((t) => (
@@ -293,18 +350,20 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                             </React.Fragment>
                         ))}
                     </div>
-
                     {/* single lane items */}
                     <div className="relative h-full">
                         {itemList.map((it, idx) => {
                             const left = timeToX(it.start.getTime());
-                            const right = timeToX(it.end.getTime());
-                            const widthPx = Math.max(6, right - left);
+                            const nowX = timeToX(nowMs);
+                            const endMs = Math.min(it.end.getTime(), nowMs);
+                            const endX = timeToX(endMs);
+                            const right = Math.min(endX, nowX - 0.5); // clamp to now, subtract epsilon to avoid overlap
+                            const widthPx = Math.max(0, right - left);
                             const col = it.color ? { bg: it.color, border: it.color } : colorForIndex(idx);
                             return (
                                 <div
                                     key={it.id}
-                                    className="absolute top-1 h-8 rounded-md px-2 text-xs overflow-hidden whitespace-nowrap"
+                                    className="absolute top-1 h-8 box-border overflow-hidden"
                                     style={{
                                         left: `${left}px`,
                                         width: `${widthPx}px`,
@@ -318,6 +377,13 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                             );
                         })}
                     </div>
+                </div>
+                {/* now marker over everything, spanning labels + grid */}
+                <div className="absolute inset-0 pointer-events-none" aria-hidden>
+                    <div
+                        className="absolute top-0 bottom-0 border-r-2 border-red-500/80 z-20"
+                        style={{ left: `${timeToX(nowMs)}px` }}
+                    />
                 </div>
             </div>
 
@@ -342,11 +408,30 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     >
                         {">"}
                     </button>
+                    <button
+                        type="button"
+                        onClick={goToNow}
+                        className="h-8 px-2 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
+                        title="Go to now (Space)"
+                        aria-label="Go to now"
+                    >
+                        Now
+                    </button>
+                    <label className="ml-2 inline-flex items-center gap-2 text-sm text-gray-300 select-none">
+                        <input
+                            type="checkbox"
+                            className="accent-red-500"
+                            checked={glueNow}
+                            onChange={(e) => setGlueNow(e.target.checked)}
+                        />
+                        Right edge glued to now
+
+                    </label>
                 </div>
                 <div className="flex gap-2">
                     <button
                         type="button"
-                        onClick={() => zoomAt(width / 2, 0.8)}
+                        onClick={() => zoomBy(0.8, width / 2)}
                         className="h-8 w-8 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
                         title="Zoom in"
                         aria-label="Zoom in"
@@ -355,7 +440,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     </button>
                     <button
                         type="button"
-                        onClick={() => zoomAt(width / 2, 1.25)}
+                        onClick={() => zoomBy(1.25, width / 2)}
                         className="h-8 w-8 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
                         title="Zoom out"
                         aria-label="Zoom out"
