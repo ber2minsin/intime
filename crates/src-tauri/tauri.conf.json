@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.tauri.dev",
   "build": {
-    "frontendDist": "../../www"
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "frontendDist": "../www",
+    "devUrl": "http://localhost:5173"
   },
   "app": {
     "windows": [
