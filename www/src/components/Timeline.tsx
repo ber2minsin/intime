@@ -17,9 +17,9 @@ const ALLOWED_STEPS_MIN = [
 ] as const;
 
 type ItemInput = { id?: string; start: Date | string | number; end: Date | string | number; name?: string; label?: string; color?: string };
-type TimelineProps = { items?: ItemInput[]; children?: React.ReactNode };
+type TimelineProps = { items?: ItemInput[]; children?: React.ReactNode; onViewportChange?: (startMs: number, endMs: number) => void };
 
-const Timeline: React.FC<TimelineProps> = ({ items = [], children }) => {
+const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportChange }) => {
 
     // Smooth zoom: ms per pixel, initialize around "hours" (1h per 100px)
     const [msPerPixel, setMsPerPixel] = useState<number>(() => (60 * 60_000) / TICK_WIDTH);
@@ -74,6 +74,15 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children }) => {
     const panByPx = (dx: number) => {
         setVisibleStartMs((s) => s - dx * msPerPixel);
     };
+
+    // notify viewport changes (debounced)
+    useEffect(() => {
+        if (!onViewportChange) return;
+        const start = visibleStartMs;
+        const end = visibleStartMs + width * msPerPixel;
+        const t = setTimeout(() => onViewportChange(start, end), 120);
+        return () => clearTimeout(t);
+    }, [onViewportChange, visibleStartMs, msPerPixel, width]);
 
     // wheel: ctrl+wheel => zoom; wheel => pan horizontally
     useEffect(() => {

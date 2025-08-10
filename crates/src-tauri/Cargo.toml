@@ -23,10 +23,13 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.7.0", features = [] }
 tauri-plugin-log = "2"
-intime_core = { package = "core", path = "../core" }
 sqlx = { version = "0.8.6", features = [
     "sqlite",
     "runtime-tokio-native-tls",
     "macros",
 ] }
 base64 = "0.22"
+anyhow = "1.0"
+dotenv = "0.15"
+
+intime_core = { package = "core", path = "../core" }
