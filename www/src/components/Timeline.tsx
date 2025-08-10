@@ -25,9 +25,10 @@ type TimelineProps = {
     onViewportChange?: (startMs: number, endMs: number) => void;
     onSelectionChange?: (range: { startMs: number; endMs: number } | null) => void;
     onOpenFullImage?: (payload: { bytes: Uint8Array; createdAtSec?: number }) => void;
+    selectedIds?: Set<string>;
 };
 
-const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportChange, onSelectionChange, onOpenFullImage }) => {
+const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportChange, onSelectionChange, onOpenFullImage, selectedIds }) => {
 
     // Smooth zoom: ms per pixel, initialize around "hours" (1h per 100px)
     const [msPerPixel, setMsPerPixel] = useState<number>(() => (60 * 60_000) / TICK_WIDTH);
@@ -490,6 +491,8 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                             const right = Math.min(endX, nowX - 0.5); // clamp to now, subtract epsilon to avoid overlap
                             const widthPx = Math.max(0, right - left);
                             const col = it.color ? { bg: it.color, border: it.color } : colorForIndex(idx);
+                            const hasSel = !!selectedIds && selectedIds.size > 0;
+                            const isSelected = !hasSel || selectedIds!.has(it.id);
                             return (
                                 <div
                                     key={it.id}
@@ -498,7 +501,9 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                                         left: `${left}px`,
                                         width: `${widthPx}px`,
                                         background: col.bg,
-                                        border: `1px solid ${col.border}`
+                                        border: `1px solid ${col.border}`,
+                                        opacity: isSelected ? 1 : 0.25,
+                                        filter: isSelected ? undefined : "grayscale(20%)",
                                     }}
                                     title={`${it.name} — ${it.start.toLocaleString()} → ${it.end.toLocaleString()}`}
                                 >

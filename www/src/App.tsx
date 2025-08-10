@@ -1,23 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Timeline from "./components/Timeline";
 import AppUsageList from "./components/AppUsageList";
 import WindowUsageTable from "./components/WindowUsageTable";
+import { SelectionProvider, useSelection } from "./state/selection";
 
 type Row = { app_id: number; app_name: string; window_title: string; event_type: string; created_at_sec: number };
 
-export default function App() {
+function AppInner() {
   const [items, setItems] = useState<Array<{ id: string; start: Date; end: Date; name: string; color?: string }>>([]);
   const [usages, setUsages] = useState<Array<{ appId: number; appName: string; durationMs: number; percent: number; color?: string }>>([]);
-  const [windowRows, setWindowRows] = useState<Array<{ title: string; startMs: number; endMs: number; durationMs: number }>>([]);
-  const [selection, setSelection] = useState<{ startMs: number; endMs: number } | null>(null);
+  const [windowRows, setWindowRows] = useState<Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId?: number }>>([]);
+  // no local selection state; selection is represented by global selectedIds
   const [fullImage, setFullImage] = useState<{ url: string; createdAtSec?: number } | null>(null);
+  const { selectedIds, setSelectedIds, clearSelected } = useSelection();
 
   // In-memory cache for immutable past events
   const rowsRef = useRef<Row[]>([]);
   const idSetRef = useRef<Set<string>>(new Set());
   const lastCachedSecRef = useRef<number | null>(null);
   const minCachedSecRef = useRef<number | null>(null);
+  // Indexes for fast selection mapping
+  const appToItemIdsRef = useRef<Map<number, string[]>>(new Map());
+  const idToAppIdRef = useRef<Map<string, number>>(new Map());
 
   const makeId = (r: Row) => `${r.app_id}-${r.created_at_sec}-${r.window_title}`;
 
@@ -94,6 +99,10 @@ export default function App() {
       // Build items from entire cached rows (ensures "next event" linkage works across fetches)
       const rows = rowsRef.current;
       const nowSec = Math.floor(Date.now() / 1000);
+      // reset indexes before rebuilding
+  appToItemIdsRef.current = new Map();
+  idToAppIdRef.current = new Map();
+
       const mapped = rows.map((r: Row, idx: number) => {
         const start = new Date(r.created_at_sec * 1000);
         const nextCreatedAtSec = rows[idx + 1]?.created_at_sec;
@@ -103,15 +112,18 @@ export default function App() {
         const id = `${r.app_id}-${r.created_at_sec}-${r.window_title}`;
         const name = `${r.app_name}: ${r.window_title}`;
         const color = colorForApp(r.app_id);
+        // index
+        idToAppIdRef.current.set(id, r.app_id);
+        const arrA = appToItemIdsRef.current.get(r.app_id) || [];
+        arrA.push(id);
+        appToItemIdsRef.current.set(r.app_id, arrA);
         return { id, start, end, name, color };
       });
       setItems(mapped);
 
-      // Choose aggregation window: selection if present, else whole dataset
-      // If selection absent, use full cached span to compute totals
-      const sel = selection;
-      const aggStartSec = sel ? Math.floor(Math.min(sel.startMs, sel.endMs) / 1000) : (minCachedSecRef.current ?? 0);
-      const aggEndSec = sel ? Math.ceil(Math.max(sel.startMs, sel.endMs) / 1000) : (lastCachedSecRef.current ?? Math.floor(Date.now() / 1000));
+  // Aggregation window: use current viewport (not drag-selection)
+  const aggStartSec = Math.floor(startMsInt / 1000);
+  const aggEndSec = Math.ceil(endMsInt / 1000);
 
       // Compute per-app usage within the aggregation window
       const startSec = aggStartSec;
@@ -140,37 +152,27 @@ export default function App() {
       usageArr.sort((a, b) => b.percent - a.percent);
       setUsages(usageArr);
 
-      // Compute per-window-title usage (start, end, duration) within aggregation window
-      type WinAgg = { startMs: number; endMs: number; durationMs: number };
-      const wmap = new Map<string, WinAgg>();
+      // Build per-event rows (id matches timeline item id), clipped to viewport
+      const evRows: Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId: number }> = [];
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
         const segStartSec = Math.max(r.created_at_sec, startSec);
         const segEndSec = Math.min(nextSec, endSec, nowSec);
         if (segEndSec > segStartSec) {
-          const key = `${r.app_id}::${r.window_title}`; // keep titles distinct per app
+          const id = `${r.app_id}-${r.created_at_sec}-${r.window_title}`;
           const segStartMs = segStartSec * 1000;
           const segEndMs = segEndSec * 1000;
-          const prev = wmap.get(key) || { startMs: segStartMs, endMs: segEndMs, durationMs: 0 };
-          prev.startMs = Math.min(prev.startMs, segStartMs);
-          prev.endMs = Math.max(prev.endMs, segEndMs);
-          prev.durationMs += segEndMs - segStartMs;
-          wmap.set(key, prev);
+          evRows.push({ id, title: r.window_title, startMs: segStartMs, endMs: segEndMs, durationMs: segEndMs - segStartMs, appId: r.app_id });
         }
       }
-      const wrows = Array.from(wmap.entries()).map(([key, v]) => ({
-        title: key.split("::", 2)[1] || key,
-        startMs: v.startMs,
-        endMs: v.endMs,
-        durationMs: v.durationMs,
-      }));
-      wrows.sort((a, b) => b.durationMs - a.durationMs);
-      setWindowRows(wrows);
+      // Default order: most recent first
+      evRows.sort((a, b) => b.startMs - a.startMs);
+      setWindowRows(evRows);
     } catch (e) {
       console.error("fetch_window_events failed", e);
     }
-  }, [selection]);
+  }, []);
 
   // Initial load: if no selection, fetch a broad time range to build full cache
   useEffect(() => {
@@ -212,9 +214,37 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Compute currently selected appIds and rowKeys from global selectedIds
+  const selectedAppIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const id of selectedIds) {
+      const appId = idToAppIdRef.current.get(id);
+      if (appId != null) set.add(appId);
+    }
+    return set;
+  }, [selectedIds]);
+
+  // selected rows in table are event ids; reuse selectedIds set directly
+
   return (
     <div className="bg-gray-950 text-gray-100 h-screen space-y-4 mx-auto px-4 py-4 overflow-hidden flex flex-col">
-      <Timeline items={items} onViewportChange={onViewportChange} onSelectionChange={setSelection} onOpenFullImage={handleOpenFullImage} />
+      <Timeline
+        items={items}
+        onViewportChange={onViewportChange}
+  onSelectionChange={(range) => {
+          if (!range) { clearSelected(); return; }
+          // selecting by dragging: choose events whose midpoint falls inside
+          const start = Math.min(range.startMs, range.endMs);
+          const end = Math.max(range.startMs, range.endMs);
+          const ids = items.filter(it => {
+            const mid = (it.start.getTime() + it.end.getTime()) / 2;
+            return mid >= start && mid <= end;
+          }).map(it => it.id);
+          setSelectedIds(ids);
+        }}
+        onOpenFullImage={handleOpenFullImage}
+        selectedIds={selectedIds}
+      />
       {fullImage ? (
         <div className="flex-1 overflow-auto bg-black/70 rounded border border-gray-800 relative">
           <button
@@ -232,10 +262,37 @@ export default function App() {
         </div>
       ) : (
         <div className="flex flex-1 overflow-auto gap-4 h-full">
-          <AppUsageList usages={usages} />
-          <WindowUsageTable rows={windowRows} />
+          <AppUsageList
+            usages={usages}
+            selectedAppIds={selectedAppIds}
+            onSelectApp={(appId) => {
+              if (appId == null) { clearSelected(); return; }
+              const current = selectedAppIds;
+              if (current.size === 1 && current.has(appId)) { clearSelected(); return; }
+              const ids = appToItemIdsRef.current.get(appId) ?? [];
+              setSelectedIds(ids);
+            }}
+          />
+          <WindowUsageTable
+            rows={windowRows}
+            selectedKeys={selectedIds}
+            onSelectRow={(id) => {
+              if (!id) { clearSelected(); return; }
+              const onlyThis = selectedIds.size === 1 && selectedIds.has(id);
+              if (onlyThis) { clearSelected(); return; }
+              setSelectedIds([id]);
+            }}
+          />
         </div>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <SelectionProvider>
+      <AppInner />
+    </SelectionProvider>
   );
 }
