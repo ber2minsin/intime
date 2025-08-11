@@ -1,6 +1,8 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 
 export type WindowUsage = {
     id: string; // unique event id
@@ -31,6 +33,9 @@ function fmtDuration(ms: number) {
 }
 
 const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) => {
+    // search state
+    const [searchQuery, setSearchQuery] = React.useState("");
+
     // total should reflect only the active selection when present; otherwise sum all rows
     const totalDuration = React.useMemo(() => {
         if (selectedKeys && selectedKeys.size > 0) {
@@ -82,9 +87,18 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
         return withIdx.map((x) => x.r);
     }, [rows, sort]);
 
+    // filter rows based on search query
+    const filteredRows = React.useMemo(() => {
+        if (!searchQuery.trim()) return sortedByKey;
+        const query = searchQuery.toLowerCase().trim();
+        return sortedByKey.filter(row => 
+            row.title.toLowerCase().includes(query)
+        );
+    }, [sortedByKey, searchQuery]);
+
     // move selected rows to the top; within groups, respect sort
     const sortedRows = React.useMemo(() => {
-        const base = sortedByKey;
+        const base = filteredRows;
         if (!selectedKeys || selectedKeys.size === 0) return base;
         const sel: WindowUsage[] = [];
         const rest: WindowUsage[] = [];
@@ -92,20 +106,29 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
             if (selectedKeys.has(r.id)) sel.push(r); else rest.push(r);
         }
         return [...sel, ...rest];
-    }, [sortedByKey, selectedKeys]);
+    }, [filteredRows, selectedKeys]);
 
     const headerArrow = (key: 'title' | 'start' | 'end' | 'duration') => sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : '';
 
     return (
         <Card className="h-full flex flex-col min-w-0 flex-1">
-            <CardHeader className="pb-3 flex-shrink-0">
-                <CardTitle className="text-sm text-muted-foreground">Active windows</CardTitle>
+            <CardHeader className="pb-1 flex-shrink-0">
+                <CardTitle className="text-xs text-muted-foreground mb-2">Active windows</CardTitle>
+                <div className="relative">
+                    <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        placeholder="Search windows..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 h-8"
+                    />
+                </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-0 min-w-0 min-h-0">
-                <div className="overflow-x-auto">
+            <CardContent className="flex-1 flex flex-col p-0 min-w-0 min-h-0">
+                <div className="flex-shrink-0 border-b border-border">
                     <Table className="w-full">
-                        <TableHeader className="sticky top-0 bg-background z-10">
-                            <TableRow className="border-border">
+                        <TableHeader>
+                            <TableRow className="border-border bg-background">
                                 <TableHead
                                     className="text-foreground cursor-pointer font-medium w-[35%] sm:w-[30%] md:w-[35%] lg:w-[40%]"
                                     onClick={() => cycleSort('title')}
@@ -152,6 +175,18 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
                                 </TableCell>
                             </TableRow>
                         </TableHeader>
+                    </Table>
+                </div>
+                <div className="flex-1 overflow-auto">
+                    <Table className="w-full">
+                        <TableHeader className="sr-only">
+                            <TableRow>
+                                <TableHead>Title</TableHead>
+                                <TableHead className="hidden sm:table-cell">Start</TableHead>
+                                <TableHead className="hidden md:table-cell">End</TableHead>
+                                <TableHead>Duration</TableHead>
+                            </TableRow>
+                        </TableHeader>
                         <TableBody>
                             {sortedRows.map((r) => {
                                 const key = r.id;
@@ -164,16 +199,16 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
                                         style={{ opacity: isSelected ? 1 : 0.4 }}
                                         onClick={() => onSelectRow?.(hasSel && selectedKeys!.has(key) && selectedKeys!.size === 1 ? null : key)}
                                     >
-                                        <TableCell className="text-foreground max-w-0" title={r.title}>
+                                        <TableCell className="text-foreground max-w-0 w-[35%] sm:w-[30%] md:w-[35%] lg:w-[40%]" title={r.title}>
                                             <div className="truncate pr-2">{r.title}</div>
                                         </TableCell>
-                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden sm:table-cell">
+                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden sm:table-cell w-[35%] md:w-[30%] lg:w-[25%]">
                                             {fmtTime(r.startMs)}
                                         </TableCell>
-                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell">
+                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell w-[25%] lg:w-[25%]">
                                             {fmtTime(r.endMs)}
                                         </TableCell>
-                                        <TableCell className="text-foreground text-right font-mono">
+                                        <TableCell className="text-foreground text-right font-mono w-[65%] sm:w-[35%] md:w-[10%]">
                                             {fmtDuration(r.durationMs)}
                                         </TableCell>
                                     </TableRow>

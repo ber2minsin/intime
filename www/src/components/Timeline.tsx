@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { Switch } from "@/components/ui/switch";
 import TimelineItem, { type TimelineItemProps } from "./TimelineItem";
 
 /** Public API:
@@ -669,8 +670,9 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={() => panByPx(width * 0.5)}
-                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
-                        title="Scroll left"
+                        disabled={glueNow}
+                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-card"
+                        title={glueNow ? "Disabled when auto-following timeline" : "Scroll left"}
                         aria-label="Scroll left"
                     >
                         {"<"}
@@ -678,8 +680,9 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={() => panByPx(-width * 0.5)}
-                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
-                        title="Scroll right"
+                        disabled={glueNow}
+                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-card"
+                        title={glueNow ? "Disabled when auto-following timeline" : "Scroll right"}
                         aria-label="Scroll right"
                     >
                         {">"}
@@ -687,22 +690,20 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={goToNow}
-                        className="h-8 px-2 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
-                        title="Go to now (Space)"
+                        disabled={glueNow}
+                        className="h-8 px-2 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-card"
+                        title={glueNow ? "Already following current time" : "Go to now (Space)"}
                         aria-label="Go to now"
                     >
                         Now
                     </button>
-                    <label className="ml-4 inline-flex items-center gap-2 text-sm text-muted-foreground select-none" title="Keep the right edge glued to current time">
-                        <input
-                            type="checkbox"
-                            className="accent-primary"
+                    <div className="ml-4 flex items-center gap-2 text-sm text-muted-foreground select-none" title="Automatically scroll to follow real-time activity">
+                        <Switch
                             checked={glueNow}
-                            onChange={(e) => setGlueNow(e.target.checked)}
+                            onCheckedChange={setGlueNow}
                         />
-                        Right edge glued to now
-
-                    </label>
+                        <span>Follow live timeline</span>
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     <button

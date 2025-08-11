@@ -30,8 +30,8 @@ const AppUsageList: React.FC<Props> = ({ usages, selectedAppIds, onSelectApp }) 
 
     return (
         <Card className="w-full max-w-xs min-w-0 shrink-0 h-full flex flex-col">
-            <CardHeader className="pb-3 flex-shrink-0">
-                <CardTitle className="text-sm text-muted-foreground">Active time by app</CardTitle>
+            <CardHeader className="pb-1 flex-shrink-0">
+                <CardTitle className="text-xs text-muted-foreground">Active time by app</CardTitle>
                 <CardDescription className="text-xs">Excludes empty time</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-0 px-6 pb-6 min-h-0">
