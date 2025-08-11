@@ -22,6 +22,7 @@ function AppInner() {
   const [activeTab, setActiveTab] = useState<'timeline' | 'settings'>(() => (localStorage.getItem('activeTab') as any) || 'timeline');
   const [hoverMagnifySetting, setHoverMagnifySetting] = useState<boolean>(() => localStorage.getItem('hoverMagnify') === '1');
   const [theme, setTheme] = useState<'light' | 'dark' | 'dark-blue' | 'system'>(() => (localStorage.getItem('theme') as any) || 'dark');
+  const [clickedAppId, setClickedAppId] = useState<number | null>(null);
 
   useEffect(() => { localStorage.setItem('activeTab', activeTab); }, [activeTab]);
   useEffect(() => { localStorage.setItem('hoverMagnify', hoverMagnifySetting ? '1' : '0'); }, [hoverMagnifySetting]);
@@ -179,81 +180,7 @@ function AppInner() {
       });
       setItems(mapped);
 
-      // Aggregation window: previously used viewport; now selection drives tables. When nothing is selected, we show full history.
-      // Build AppUsage/Window table: if no selection, show everything; else compute just for selection
-      if (selectedIdsRef.current.size === 0) {
-        // AppUsage over all rows
-        const accAll = new Map<number, { appName: string; durationMs: number }>();
-        for (let i = 0; i < rows.length; i++) {
-          const r = rows[i];
-          const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
-          const segStartSec = r.created_at_sec;
-          const segEndSec = Math.min(nextSec, nowSec);
-          if (segEndSec > segStartSec) {
-            const durMs = (segEndSec - segStartSec) * 1000;
-            const prev = accAll.get(r.app_id) || { appName: r.app_name, durationMs: 0 };
-            prev.durationMs += durMs;
-            accAll.set(r.app_id, prev);
-          }
-        }
-        const totalMsAll = Array.from(accAll.values()).reduce((s, v) => s + v.durationMs, 0);
-        const usageAll = Array.from(accAll.entries()).map(([appId, v]) => ({
-          appId,
-          appName: v.appName,
-          durationMs: v.durationMs,
-          percent: totalMsAll > 0 ? (v.durationMs / totalMsAll) * 100 : 0,
-          color: colorForApp(appId),
-        })).sort((a, b) => b.percent - a.percent);
-        setUsages(usageAll);
-
-        // WindowUsageTable over all rows
-        const evRowsAll: Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId: number }> = [];
-        for (let i = 0; i < rows.length; i++) {
-          const r = rows[i];
-          const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
-          const segStartMs = r.created_at_sec * 1000;
-          const segEndMs = Math.min(nextSec, nowSec) * 1000;
-          if (segEndMs > segStartMs) {
-            const id = `${r.app_id}-${r.created_at_sec}-${r.window_title}`;
-            evRowsAll.push({ id, title: r.window_title, startMs: segStartMs, endMs: segEndMs, durationMs: segEndMs - segStartMs, appId: r.app_id });
-          }
-        }
-        evRowsAll.sort((a, b) => b.startMs - a.startMs);
-        setWindowRows(evRowsAll);
-      } else {
-        // Selection present: compute from selected ids
-        const ids = Array.from(selectedIdsRef.current);
-        const evRowsSel: Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId: number }> = [];
-        const accSel = new Map<number, { appName: string; durationMs: number }>();
-        for (const id of ids) {
-          const idx = idToIndexRef.current.get(id);
-          if (idx == null) continue;
-          const r = rows[idx];
-          const nextSec = rows[idx + 1]?.created_at_sec ?? nowSec;
-          const segStartMs = r.created_at_sec * 1000;
-          const segEndMs = Math.min(nextSec, nowSec) * 1000;
-          if (segEndMs > segStartMs) {
-            evRowsSel.push({ id, title: r.window_title, startMs: segStartMs, endMs: segEndMs, durationMs: segEndMs - segStartMs, appId: r.app_id });
-            const durMs = segEndMs - segStartMs;
-            const prev = accSel.get(r.app_id) || { appName: r.app_name, durationMs: 0 };
-            prev.durationMs += durMs;
-            accSel.set(r.app_id, prev);
-          }
-        }
-        evRowsSel.sort((a, b) => b.startMs - a.startMs);
-        setWindowRows(evRowsSel);
-        const totalMsSel = Array.from(accSel.values()).reduce((s, v) => s + v.durationMs, 0);
-        const usageSel = Array.from(accSel.entries()).map(([appId, v]) => ({
-          appId,
-          appName: v.appName,
-          durationMs: v.durationMs,
-          percent: totalMsSel > 0 ? (v.durationMs / totalMsSel) * 100 : 0,
-          color: colorForApp(appId),
-        })).sort((a, b) => b.percent - a.percent);
-        setUsages(usageSel);
-      }
-
-      // Note: do not update WindowUsageTable rows here; table is driven only by selection
+      // Note: Usage calculation is now handled by the useEffect that watches selectedIds
     } catch (e) {
       console.error("fetch_window_events failed", e);
     }
@@ -307,8 +234,10 @@ function AppInner() {
       const appId = idToAppIdRef.current.get(id);
       if (appId != null) set.add(appId);
     }
+    // Always include the clicked app, even if it has no activity in selection
+    if (clickedAppId != null) set.add(clickedAppId);
     return set;
-  }, [selectedIds]);
+  }, [selectedIds, clickedAppId]);
 
   // selected rows in table are event ids; reuse selectedIds set directly
 
@@ -370,15 +299,30 @@ function AppInner() {
     evRowsSel.sort((a, b) => b.startMs - a.startMs);
     setWindowRows(evRowsSel);
     const totalMsSel = Array.from(accSel.values()).reduce((s, v) => s + v.durationMs, 0);
-    const usageSel = Array.from(accSel.entries()).map(([appId, v]) => ({
-      appId,
-      appName: v.appName,
-      durationMs: v.durationMs,
-      percent: totalMsSel > 0 ? (v.durationMs / totalMsSel) * 100 : 0,
-      color: colorForApp(appId),
-    })).sort((a, b) => b.percent - a.percent);
+    
+    // Build usage array including all apps (to show dimmed ones), but with selection-based percentages
+    const allAppIds = new Set<number>();
+    for (const r of rows) {
+      allAppIds.add(r.app_id);
+    }
+    // Always include the clicked app, even if it's not in the current data
+    if (clickedAppId != null) {
+      allAppIds.add(clickedAppId);
+    }
+    
+    const usageSel = Array.from(allAppIds).map((appId) => {
+      const selData = accSel.get(appId);
+      const appName = selData?.appName || rows.find(r => r.app_id === appId)?.app_name || `App ${appId}`;
+      return {
+        appId,
+        appName,
+        durationMs: selData?.durationMs || 0,
+        percent: totalMsSel > 0 && selData ? (selData.durationMs / totalMsSel) * 100 : 0,
+        color: colorForApp(appId),
+      };
+    }).sort((a, b) => b.percent - a.percent);
     setUsages(usageSel);
-  }, [selectedIds]);
+  }, [selectedIds, clickedAppId]);
 
   return (
     <div className="bg-background text-foreground h-screen space-y-4 mx-auto px-4 py-4 overflow-hidden flex flex-col">
@@ -454,9 +398,18 @@ function AppInner() {
                 usages={usages}
                 selectedAppIds={selectedAppIds}
                 onSelectApp={(appId) => {
-                  if (appId == null) { clearSelected(); return; }
+                  if (appId == null) { 
+                    clearSelected(); 
+                    setClickedAppId(null);
+                    return; 
+                  }
                   const current = selectedAppIds;
-                  if (current.size === 1 && current.has(appId)) { clearSelected(); return; }
+                  if (current.size === 1 && current.has(appId)) { 
+                    clearSelected(); 
+                    setClickedAppId(null);
+                    return; 
+                  }
+                  setClickedAppId(appId);
                   const ids = appToItemIdsRef.current.get(appId) ?? [];
                   setSelectedIds(ids);
                 }}
