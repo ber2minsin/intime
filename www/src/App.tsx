@@ -428,7 +428,7 @@ function AppInner() {
           />
 
           {fullImage ? (
-            <Card className="flex-1 overflow-auto bg-black/70 relative min-h-0">
+            <Card className="flex-1 overflow-auto bg-black/70 relative min-h-0" style={{ maxHeight: 'calc(100vh - 300px)' }}>
               <CardContent className="p-0 relative">
                 <Button
                   variant="outline"
