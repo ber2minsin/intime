@@ -16,12 +16,11 @@ type TimelineItemRenderProps = {
     name: string;
     colorBg: string;
     colorBorder: string;
-    title?: string;
 };
 
 // Single public component: presentational with overflow-aware label selection.
 // Also exported as Timeline.Item for the child API; those children are not directly rendered.
-const TimelineItem: React.FC<TimelineItemRenderProps> = ({ left, width, name, colorBg, colorBorder, title }) => {
+const TimelineItem: React.FC<TimelineItemRenderProps> = ({ left, width, name, colorBg, colorBorder }) => {
     const ref = useRef<HTMLDivElement | null>(null);
     const [mode, setMode] = useState<"both" | "appOnly" | "none">("both");
 
@@ -68,7 +67,6 @@ const TimelineItem: React.FC<TimelineItemRenderProps> = ({ left, width, name, co
             ref={ref}
             className="absolute top-1 h-8 px-2 text-xs overflow-hidden whitespace-nowrap box-border flex items-center"
             style={{ left, width, background: colorBg, border: `1px solid ${colorBorder}` }}
-            title={title}
         >
             {content}
         </div>

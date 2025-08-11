@@ -48,6 +48,8 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     const zoomLabel: ZoomLabel = stepMinutes >= 43200 ? "months" : stepMinutes >= 1440 ? "days" : stepMinutes >= 60 ? "hours" : "minutes";
 
     const containerRef = useRef<HTMLDivElement | null>(null);
+    // Optional: hover magnification of items (visual lens)
+    const [hoverMagnify, setHoverMagnify] = useState<boolean>(false);
     const [hoverX, setHoverX] = useState<number | null>(null);
     const [hoverMs, setHoverMs] = useState<number | null>(null);
     const [hoverClientX, setHoverClientX] = useState<number | null>(null);
@@ -521,9 +523,11 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                                         opacity: isSelected ? 1 : 0.25,
                                         filter: isSelected ? undefined : "grayscale(20%)",
                                     }}
-                                    title={`${it.name} — ${it.start.toLocaleString()} → ${it.end.toLocaleString()}`}
                                 >
-                                    {it.name}
+                                    {/* base label */}
+                                    <div className="px-1 text-[11px] leading-4 text-gray-100 whitespace-nowrap overflow-hidden text-ellipsis">
+                                        {it.name}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -552,6 +556,50 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                         />
                     )}
 
+                    {/* magnified hovered item overlay */}
+                    {hoverMagnify && hoverX != null && (() => {
+                        // locate hovered item within current visible list
+                        for (let idx = 0; idx < itemList.length; idx++) {
+                            const it = itemList[idx];
+                            const left = timeToX(it.start.getTime());
+                            const endMs = Math.min(it.end.getTime(), nowMs);
+                            const endX = timeToX(endMs);
+                            const nowX = timeToX(nowMs);
+                            const right = Math.min(endX, nowX - 0.5);
+                            const widthPx = Math.max(0, right - left);
+                            if (widthPx <= 0) continue;
+                            if (left <= hoverX && hoverX <= right) {
+                                const col = it.color ? { bg: it.color, border: it.color } : colorForIndex(idx);
+                                const OVERLAY_W = 300;
+                                const gapBelowLane = 4;
+                                const laneTop = 8; // grid area starts at 8px from top
+                                const baseItemTop = 1; // item top inside lane
+                                const baseItemH = 32; // h-8 = ~32px
+                                const overlayExtra = 32; // push further down to avoid crowding
+                                const overlayTop = laneTop + baseItemTop + baseItemH + gapBelowLane + overlayExtra; // ~77px
+                                const leftClamped = Math.max(0, Math.min(left, width - OVERLAY_W));
+                                return (
+                                    <div key={`mag-${it.id}`} className="absolute z-30" style={{ left: `${leftClamped}px`, top: `${overlayTop}px`, width: `${OVERLAY_W}px` }}>
+                                        <div
+                                            className="absolute top-0 h-8 box-border overflow-hidden"
+                                            style={{
+                                                left: 0,
+                                                width: `${OVERLAY_W}px`,
+                                                background: col.bg,
+                                                border: `1px solid ${col.border}`,
+                                            }}
+                                        >
+                                            <div className="px-1 text-[11px] leading-4 text-gray-100 whitespace-nowrap overflow-hidden text-ellipsis">
+                                                {it.name}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }
+                        }
+                        return null;
+                    })()}
+
                     {/* in-timeline preview removed to avoid clipping */}
                     {/* debug badge removed */}
                 </div>
@@ -567,7 +615,8 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     const vw = typeof window !== 'undefined' ? window.innerWidth : 1920;
                     const vh = typeof window !== 'undefined' ? window.innerHeight : 1080;
                     const left = Math.max(8, Math.min(hoverClientX + pad, vw - (maxW + 20)));
-                    const top = Math.max(8, Math.min(hoverClientY + pad, vh - (maxH + 20)));
+                    const extraY = hoverMagnify ? 60 : 0; // push preview lower when magnify overlay is shown
+                    const top = Math.max(8, Math.min(hoverClientY + pad + extraY, vh - (maxH + 20)));
                     return (
                         <div style={{ position: 'fixed', left, top, zIndex: 9999, pointerEvents: 'none' }}>
                             <div className="rounded border border-gray-700 bg-gray-900/95 shadow-lg p-1">
@@ -609,15 +658,24 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     >
                         Now
                     </button>
-                    <label className="ml-2 inline-flex items-center gap-2 text-sm text-gray-300 select-none">
+            <label className="ml-4 inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Keep the right edge glued to current time">
                         <input
                             type="checkbox"
-                            className="accent-red-500"
+                className="accent-cyan-500"
                             checked={glueNow}
                             onChange={(e) => setGlueNow(e.target.checked)}
                         />
                         Right edge glued to now
 
+                    </label>
+                    <label className="ml-4 inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Magnify hovered item to make tiny items easier to see (visual only)">
+                        <input
+                            type="checkbox"
+                            className="accent-cyan-500"
+                            checked={hoverMagnify}
+                            onChange={(e) => setHoverMagnify(e.target.checked)}
+                        />
+                        Hover effect
                     </label>
                 </div>
                 <div className="flex gap-2">
