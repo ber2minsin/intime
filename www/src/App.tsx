@@ -11,6 +11,11 @@ function AppInner() {
   const [items, setItems] = useState<Array<{ id: string; start: Date; end: Date; name: string; color?: string }>>([]);
   const [usages, setUsages] = useState<Array<{ appId: number; appName: string; durationMs: number; percent: number; color?: string }>>([]);
   const [windowRows, setWindowRows] = useState<Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId?: number }>>([]);
+  // UI state: tabs and settings
+  const [activeTab, setActiveTab] = useState<'timeline' | 'settings'>(() => (localStorage.getItem('activeTab') as any) || 'timeline');
+  const [hoverMagnifySetting, setHoverMagnifySetting] = useState<boolean>(() => localStorage.getItem('hoverMagnify') === '1');
+  useEffect(() => { localStorage.setItem('activeTab', activeTab); }, [activeTab]);
+  useEffect(() => { localStorage.setItem('hoverMagnify', hoverMagnifySetting ? '1' : '0'); }, [hoverMagnifySetting]);
   // no local selection state; selection is represented by global selectedIds
   const [fullImage, setFullImage] = useState<{ url: string; createdAtSec?: number } | null>(null);
   const { selectedIds, setSelectedIds, clearSelected } = useSelection();
@@ -127,50 +132,81 @@ function AppInner() {
       });
       setItems(mapped);
 
-  // Aggregation window: previously used viewport; now selection drives tables. When nothing is selected, we show full history.
-        // Build AppUsage and Window table over entire cached history when no selection is active
-        if (selectedIdsRef.current.size === 0) {
-          // AppUsage over all rows
-          const accAll = new Map<number, { appName: string; durationMs: number }>();
-          for (let i = 0; i < rows.length; i++) {
-            const r = rows[i];
-            const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
-            const segStartSec = r.created_at_sec;
-            const segEndSec = Math.min(nextSec, nowSec);
-            if (segEndSec > segStartSec) {
-              const durMs = (segEndSec - segStartSec) * 1000;
-              const prev = accAll.get(r.app_id) || { appName: r.app_name, durationMs: 0 };
-              prev.durationMs += durMs;
-              accAll.set(r.app_id, prev);
-            }
+      // Aggregation window: previously used viewport; now selection drives tables. When nothing is selected, we show full history.
+      // Build AppUsage/Window table: if no selection, show everything; else compute just for selection
+      if (selectedIdsRef.current.size === 0) {
+        // AppUsage over all rows
+        const accAll = new Map<number, { appName: string; durationMs: number }>();
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
+          const segStartSec = r.created_at_sec;
+          const segEndSec = Math.min(nextSec, nowSec);
+          if (segEndSec > segStartSec) {
+            const durMs = (segEndSec - segStartSec) * 1000;
+            const prev = accAll.get(r.app_id) || { appName: r.app_name, durationMs: 0 };
+            prev.durationMs += durMs;
+            accAll.set(r.app_id, prev);
           }
-          const totalMsAll = Array.from(accAll.values()).reduce((s, v) => s + v.durationMs, 0);
-          const usageAll = Array.from(accAll.entries()).map(([appId, v]) => ({
-            appId,
-            appName: v.appName,
-            durationMs: v.durationMs,
-            percent: totalMsAll > 0 ? (v.durationMs / totalMsAll) * 100 : 0,
-            color: colorForApp(appId),
-          })).sort((a, b) => b.percent - a.percent);
-          setUsages(usageAll);
-
-          // WindowUsageTable over all rows
-          const evRowsAll: Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId: number }> = [];
-          for (let i = 0; i < rows.length; i++) {
-            const r = rows[i];
-            const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
-            const segStartMs = r.created_at_sec * 1000;
-            const segEndMs = Math.min(nextSec, nowSec) * 1000;
-            if (segEndMs > segStartMs) {
-              const id = `${r.app_id}-${r.created_at_sec}-${r.window_title}`;
-              evRowsAll.push({ id, title: r.window_title, startMs: segStartMs, endMs: segEndMs, durationMs: segEndMs - segStartMs, appId: r.app_id });
-            }
-          }
-          evRowsAll.sort((a, b) => b.startMs - a.startMs);
-          setWindowRows(evRowsAll);
         }
+        const totalMsAll = Array.from(accAll.values()).reduce((s, v) => s + v.durationMs, 0);
+        const usageAll = Array.from(accAll.entries()).map(([appId, v]) => ({
+          appId,
+          appName: v.appName,
+          durationMs: v.durationMs,
+          percent: totalMsAll > 0 ? (v.durationMs / totalMsAll) * 100 : 0,
+          color: colorForApp(appId),
+        })).sort((a, b) => b.percent - a.percent);
+        setUsages(usageAll);
 
-  // Note: do not update WindowUsageTable rows here; table is driven only by selection
+        // WindowUsageTable over all rows
+        const evRowsAll: Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId: number }> = [];
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
+          const segStartMs = r.created_at_sec * 1000;
+          const segEndMs = Math.min(nextSec, nowSec) * 1000;
+          if (segEndMs > segStartMs) {
+            const id = `${r.app_id}-${r.created_at_sec}-${r.window_title}`;
+            evRowsAll.push({ id, title: r.window_title, startMs: segStartMs, endMs: segEndMs, durationMs: segEndMs - segStartMs, appId: r.app_id });
+          }
+        }
+        evRowsAll.sort((a, b) => b.startMs - a.startMs);
+        setWindowRows(evRowsAll);
+      } else {
+        // Selection present: compute from selected ids
+        const ids = Array.from(selectedIdsRef.current);
+        const evRowsSel: Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId: number }> = [];
+        const accSel = new Map<number, { appName: string; durationMs: number }>();
+        for (const id of ids) {
+          const idx = idToIndexRef.current.get(id);
+          if (idx == null) continue;
+          const r = rows[idx];
+          const nextSec = rows[idx + 1]?.created_at_sec ?? nowSec;
+          const segStartMs = r.created_at_sec * 1000;
+          const segEndMs = Math.min(nextSec, nowSec) * 1000;
+          if (segEndMs > segStartMs) {
+            evRowsSel.push({ id, title: r.window_title, startMs: segStartMs, endMs: segEndMs, durationMs: segEndMs - segStartMs, appId: r.app_id });
+            const durMs = segEndMs - segStartMs;
+            const prev = accSel.get(r.app_id) || { appName: r.app_name, durationMs: 0 };
+            prev.durationMs += durMs;
+            accSel.set(r.app_id, prev);
+          }
+        }
+        evRowsSel.sort((a, b) => b.startMs - a.startMs);
+        setWindowRows(evRowsSel);
+        const totalMsSel = Array.from(accSel.values()).reduce((s, v) => s + v.durationMs, 0);
+        const usageSel = Array.from(accSel.entries()).map(([appId, v]) => ({
+          appId,
+          appName: v.appName,
+          durationMs: v.durationMs,
+          percent: totalMsSel > 0 ? (v.durationMs / totalMsSel) * 100 : 0,
+          color: colorForApp(appId),
+        })).sort((a, b) => b.percent - a.percent);
+        setUsages(usageSel);
+      }
+
+      // Note: do not update WindowUsageTable rows here; table is driven only by selection
     } catch (e) {
       console.error("fetch_window_events failed", e);
     }
@@ -299,42 +335,76 @@ function AppInner() {
 
   return (
     <div className="bg-gray-950 text-gray-100 h-screen space-y-4 mx-auto px-4 py-4 overflow-hidden flex flex-col">
-      <Timeline
-        items={items}
-        onViewportChange={onViewportChange}
-        onSelectionChange={(range) => {
-          if (!range) { clearSelected(); return; }
-          const start = Math.min(range.startMs, range.endMs);
-          const end = Math.max(range.startMs, range.endMs);
-          if (start === end) {
-            // simple click on timeline: select the event under that time, if any
-            const t = start;
-            const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
-            if (found) setSelectedIds([found.id]); else clearSelected();
-            return;
-          }
-          // selecting by dragging: choose events that overlap the selection (clamp selection to now)
-          const nowMs = Date.now();
-          const selStart = Math.min(start, nowMs);
-          const selEnd = Math.min(end, nowMs);
-          if (selEnd <= selStart) {
-            // selection entirely in future -> treat as click at now
-            const t = nowMs;
-            const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
-            if (found) setSelectedIds([found.id]); else clearSelected();
-            return;
-          }
-          const ids = items.filter(it => {
-            const a = it.start.getTime();
-            const b = it.end.getTime();
-            // overlap if max(start) < min(end)
-            return Math.max(a, selStart) < Math.min(b, selEnd);
-          }).map(it => it.id);
-          setSelectedIds(ids);
-        }}
-        onOpenFullImage={handleOpenFullImage}
-        selectedIds={selectedIds}
-      />
+      {/* Tabs header */}
+      <div className="flex items-center gap-2 border-b border-gray-800 pb-2">
+        <button
+          className={`px-3 py-1 rounded ${activeTab === 'timeline' ? 'bg-gray-800 text-gray-100 border border-gray-700' : 'text-gray-300 hover:bg-gray-800/50 border border-transparent'}`}
+          onClick={() => setActiveTab('timeline')}
+        >Timeline</button>
+        <button
+          className={`px-3 py-1 rounded ${activeTab === 'settings' ? 'bg-gray-800 text-gray-100 border border-gray-700' : 'text-gray-300 hover:bg-gray-800/50 border border-transparent'}`}
+          onClick={() => setActiveTab('settings')}
+        >Settings</button>
+        <div className="flex-1" />
+      </div>
+
+      {activeTab === 'timeline' && (
+        <Timeline
+          items={items}
+          onViewportChange={onViewportChange}
+          onSelectionChange={(range) => {
+            if (!range) { clearSelected(); return; }
+            const start = Math.min(range.startMs, range.endMs);
+            const end = Math.max(range.startMs, range.endMs);
+            if (start === end) {
+              // simple click on timeline: select the event under that time, if any
+              const t = start;
+              const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
+              if (found) setSelectedIds([found.id]); else clearSelected();
+              return;
+            }
+            // selecting by dragging: choose events that overlap the selection (clamp selection to now)
+            const nowMs = Date.now();
+            const selStart = Math.min(start, nowMs);
+            const selEnd = Math.min(end, nowMs);
+            if (selEnd <= selStart) {
+              // selection entirely in future -> treat as click at now
+              const t = nowMs;
+              const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
+              if (found) setSelectedIds([found.id]); else clearSelected();
+              return;
+            }
+            const ids = items.filter(it => {
+              const a = it.start.getTime();
+              const b = it.end.getTime();
+              // overlap if max(start) < min(end)
+              return Math.max(a, selStart) < Math.min(b, selEnd);
+            }).map(it => it.id);
+            setSelectedIds(ids);
+          }}
+          onOpenFullImage={handleOpenFullImage}
+          selectedIds={selectedIds}
+          hoverMagnify={hoverMagnifySetting}
+        />
+      )}
+      {activeTab === 'settings' && (
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-xl mt-4 space-y-6">
+            <div>
+              <div className="text-lg font-semibold mb-2">Display</div>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Magnify hovered item to make tiny items easier to see (visual only)">
+                <input
+                  type="checkbox"
+                  className="accent-cyan-500"
+                  checked={hoverMagnifySetting}
+                  onChange={(e) => setHoverMagnifySetting(e.target.checked)}
+                />
+                Hover magnify on timeline
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
       {fullImage ? (
         <div className="flex-1 overflow-auto bg-black/70 rounded border border-gray-800 relative">
           <button
@@ -351,7 +421,7 @@ function AppInner() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 overflow-auto gap-4 h-full">
+        activeTab === 'timeline' && <div className="flex flex-1 overflow-auto gap-4 h-full">
           <AppUsageList
             usages={usages}
             selectedAppIds={selectedAppIds}

@@ -26,9 +26,10 @@ type TimelineProps = {
     onSelectionChange?: (range: { startMs: number; endMs: number } | null) => void;
     onOpenFullImage?: (payload: { bytes: Uint8Array; createdAtSec?: number }) => void;
     selectedIds?: Set<string>;
+    hoverMagnify?: boolean; // externally controlled via Settings
 };
 
-const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportChange, onSelectionChange, onOpenFullImage, selectedIds }) => {
+const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportChange, onSelectionChange, onOpenFullImage, selectedIds, hoverMagnify = false }) => {
 
     // Smooth zoom: ms per pixel, initialize around "hours" (1h per 100px)
     const [msPerPixel, setMsPerPixel] = useState<number>(() => (60 * 60_000) / TICK_WIDTH);
@@ -38,8 +39,22 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         const id = setInterval(() => setNowMs(Date.now()), 1000);
         return () => clearInterval(id);
     }, []);
-    // glue right edge of viewport to now
-    const [glueNow, setGlueNow] = useState<boolean>(false);
+    // glue right edge of viewport to now (persisted in localStorage)
+    const [glueNow, setGlueNow] = useState<boolean>(() => {
+        try {
+            if (typeof window === 'undefined') return false;
+            return window.localStorage.getItem('glueNow') === '1';
+        } catch {
+            return false;
+        }
+    });
+    useEffect(() => {
+        try {
+            if (typeof window !== 'undefined') {
+                window.localStorage.setItem('glueNow', glueNow ? '1' : '0');
+            }
+        } catch { /* ignore */ }
+    }, [glueNow]);
     // Choose a tick step (in minutes) close to current msPerPixel
     const desiredMinutes = (msPerPixel * TICK_WIDTH) / 60_000;
     const stepMinutes: number = ALLOWED_STEPS_MIN.reduce((best, cur) => {
@@ -48,8 +63,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     const zoomLabel: ZoomLabel = stepMinutes >= 43200 ? "months" : stepMinutes >= 1440 ? "days" : stepMinutes >= 60 ? "hours" : "minutes";
 
     const containerRef = useRef<HTMLDivElement | null>(null);
-    // Optional: hover magnification of items (visual lens)
-    const [hoverMagnify, setHoverMagnify] = useState<boolean>(false);
+    // Optional: hover magnification of items (visual lens) controlled via prop
     const [hoverX, setHoverX] = useState<number | null>(null);
     const [hoverMs, setHoverMs] = useState<number | null>(null);
     const [hoverClientX, setHoverClientX] = useState<number | null>(null);
@@ -367,6 +381,23 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         })
         .sort((a, b) => a.start.getTime() - b.start.getTime());
 
+    // Derive an external selection range from selectedIds when no internal drag range is active
+    const externalSelRange: { startMs: number; endMs: number } | null = React.useMemo(() => {
+        if (!selectedIds || selectedIds.size === 0) return null;
+        let minStart = Number.POSITIVE_INFINITY;
+        let maxEnd = Number.NEGATIVE_INFINITY;
+        for (const it of itemList) {
+            if (!selectedIds.has(it.id)) continue;
+            const s = it.start.getTime();
+            const e = Math.min(it.end.getTime(), nowMs);
+            if (e <= s) continue;
+            if (s < minStart) minStart = s;
+            if (e > maxEnd) maxEnd = e;
+        }
+        if (!isFinite(minStart) || !isFinite(maxEnd) || maxEnd <= minStart) return null;
+        return { startMs: minStart, endMs: maxEnd };
+    }, [itemList, selectedIds, nowMs]);
+
     // assign distinct colors if missing (HSL around the wheel)
     const colorForIndex = (i: number) => {
         const hue = Math.floor((i * 137.508) % 360); // golden angle
@@ -545,16 +576,20 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                             style={{ left: `${hoverX}px` }}
                         />
                     )}
-                    {/* selection range overlay */}
-                    {selRange && (
-                        <div
-                            className="absolute top-0 bottom-0 bg-cyan-400/10 border-x border-cyan-400/40 z-10"
-                            style={{
-                                left: `${Math.min(timeToX(selRange.startMs), timeToX(selRange.endMs))}px`,
-                                width: `${Math.abs(timeToX(selRange.endMs) - timeToX(selRange.startMs))}px`,
-                            }}
-                        />
-                    )}
+                    {/* selection range overlay (persisted visually) */}
+                    {(() => {
+                        const vr = selRange ?? externalSelRange;
+                        if (!vr) return null;
+                        const leftPx = Math.min(timeToX(vr.startMs), timeToX(vr.endMs));
+                        const widthPx = Math.max(0, Math.abs(timeToX(vr.endMs) - timeToX(vr.startMs)));
+                        if (widthPx <= 0) return null;
+                        return (
+                            <div
+                                className="absolute top-0 bottom-0 border-x-2 border-blue-400/70 z-10"
+                                style={{ left: `${leftPx}px`, width: `${widthPx}px` }}
+                            />
+                        );
+                    })()}
 
                     {/* magnified hovered item overlay */}
                     {hoverMagnify && hoverX != null && (() => {
@@ -667,15 +702,6 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                         />
                         Right edge glued to now
 
-                    </label>
-                    <label className="ml-4 inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Magnify hovered item to make tiny items easier to see (visual only)">
-                        <input
-                            type="checkbox"
-                            className="accent-cyan-500"
-                            checked={hoverMagnify}
-                            onChange={(e) => setHoverMagnify(e.target.checked)}
-                        />
-                        Hover effect
                     </label>
                 </div>
                 <div className="flex gap-2">
