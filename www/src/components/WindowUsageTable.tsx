@@ -34,7 +34,13 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
     const END_W = 160;
     const DUR_W = 96;
 
-    const totalDuration = rows.reduce((acc, r) => acc + (r.durationMs || 0), 0);
+    // total should reflect only the active selection when present; otherwise sum all rows
+    const totalDuration = React.useMemo(() => {
+        if (selectedKeys && selectedKeys.size > 0) {
+            return rows.reduce((acc, r) => acc + (selectedKeys.has(r.id) ? (r.durationMs || 0) : 0), 0);
+        }
+        return rows.reduce((acc, r) => acc + (r.durationMs || 0), 0);
+    }, [rows, selectedKeys]);
 
     // move selected rows to the top while preserving original order
     const sortedRows = (() => {
