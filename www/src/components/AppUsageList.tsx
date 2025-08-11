@@ -1,4 +1,5 @@
 import React from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export type AppUsage = {
     appId: number;
@@ -28,40 +29,50 @@ const AppUsageList: React.FC<Props> = ({ usages, selectedAppIds, onSelectApp }) 
     })();
 
     return (
-        <div className="bg-gray-900 border border-gray-800 rounded p-3 w-full max-w-xs min-w-0 shrink-0 h-full overflow-auto">
-            <div className="mb-2 text-sm text-gray-400">Active time by app (excludes empty time)</div>
-            <ul className="divide-y divide-gray-800 overflow-auto pr-1">
-                {ordered.map((u) => {
-                    const hasSel = !!selectedAppIds && selectedAppIds.size > 0;
-                    const isSelected = !hasSel || selectedAppIds!.has(u.appId);
-                    return (
-                        <li
-                            key={u.appId}
-                            className="py-2 flex items-center gap-3 cursor-pointer rounded hover:bg-gray-800/40"
-                            style={{ opacity: isSelected ? 1 : 0.35 }}
-                            onClick={() => onSelectApp?.(hasSel && selectedAppIds!.has(u.appId) && selectedAppIds!.size === 1 ? null : u.appId)}
-                        >
-                            <div className="w-3 h-3 rounded-sm" style={{ background: u.color || "#888" }} />
-                            <div className="flex-1">
-                                <div className="text-sm text-gray-200">{u.appName}</div>
-                                <div className="h-2 bg-gray-800 rounded overflow-hidden mt-1">
-                                    <div
-                                        className="h-full bg-gray-200"
-                                        style={{ width: `${u.percent.toFixed(2)}%`, background: u.color || "#ccc" }}
-                                    />
+        <Card className="w-full max-w-xs min-w-0 shrink-0 h-full flex flex-col">
+            <CardHeader className="pb-3 flex-shrink-0">
+                <CardTitle className="text-sm text-muted-foreground">Active time by app</CardTitle>
+                <CardDescription className="text-xs">Excludes empty time</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-0 px-6 pb-6 min-h-0">
+                <ul className="space-y-3">
+                    {ordered.map((u) => {
+                        const hasSel = !!selectedAppIds && selectedAppIds.size > 0;
+                        const isSelected = !hasSel || selectedAppIds!.has(u.appId);
+                        return (
+                            <li
+                                key={u.appId}
+                                className="flex items-center gap-3 cursor-pointer rounded p-2 hover:bg-accent transition-colors"
+                                style={{ opacity: isSelected ? 1 : 0.35 }}
+                                onClick={() => onSelectApp?.(hasSel && selectedAppIds!.has(u.appId) && selectedAppIds!.size === 1 ? null : u.appId)}
+                            >
+                                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: u.color || "#888" }} />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm text-foreground truncate">{u.appName}</div>
+                                    <div className="mt-1">
+                                        <div className="h-2 bg-muted rounded overflow-hidden">
+                                            <div
+                                                className="h-full transition-all duration-200"
+                                                style={{
+                                                    width: `${u.percent.toFixed(2)}%`,
+                                                    background: u.color || "#ccc"
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="text-xs text-gray-400 min-w-[90px] text-right">
-                                {u.percent.toFixed(1)}%
-                            </div>
-                        </li>
-                    );
-                })}
-            </ul>
-            {total === 0 && (
-                <div className="text-xs text-gray-500">No active time in the current window.</div>
-            )}
-        </div>
+                                <div className="text-xs text-muted-foreground min-w-[60px] text-right flex-shrink-0">
+                                    {u.percent.toFixed(1)}%
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+                {total === 0 && (
+                    <div className="text-xs text-muted-foreground text-center py-4">No active time in the current window.</div>
+                )}
+            </CardContent>
+        </Card>
     );
 };
 

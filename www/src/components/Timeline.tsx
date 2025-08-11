@@ -470,7 +470,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         <div>
             <div
                 ref={containerRef}
-                className="relative h-40 bg-gray-900 border border-gray-800 rounded overflow-hidden select-none"
+                className="relative h-40 bg-card border border-border rounded overflow-hidden select-none"
                 style={{ userSelect: "none" }}
             >
                 {/* time labels + vertical lines */}
@@ -478,10 +478,10 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     {ticks.map((t) => (
                         <div
                             key={t.ms}
-                            className="absolute top-0 h-8 border-r border-gray-700 px-2 flex items-center justify-center"
+                            className="absolute top-0 h-8 border-r border-border px-2 flex items-center justify-center"
                             style={{ left: `${timeToX(t.ms)}px`, width: `${Math.max(1, widthForTick(t))}px` }}
                         >
-                            <div className="text-xs text-gray-400">
+                            <div className="text-xs text-muted-foreground">
                                 {zoomLabel === "months"
                                     ? t.date.toLocaleString(undefined, { month: "short", year: "numeric" })
                                     : zoomLabel === "days"
@@ -500,14 +500,14 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                             <React.Fragment key={t.ms}>
                                 {/* major line */}
                                 <div
-                                    className="absolute top-0 bottom-0 border-r border-gray-800"
+                                    className="absolute top-0 bottom-0 border-r border-border"
                                     style={{ left: `${timeToX(t.ms)}px` }}
                                 />
                                 {/* minor lines */}
                                 {getMinorFractions(widthForTick(t)).map((f, i) => (
                                     <div
                                         key={`${t.ms}-m-${i}`}
-                                        className="absolute top-0 bottom-0 border-r border-gray-800/40"
+                                        className="absolute top-0 bottom-0 border-r border-border/40"
                                         style={{ left: `${timeToX(t.ms + (t.nextMs - t.ms) * f)}px` }}
                                     />
                                 ))}
@@ -556,7 +556,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                                     }}
                                 >
                                     {/* base label */}
-                                    <div className="px-1 text-[11px] leading-4 text-gray-100 whitespace-nowrap overflow-hidden text-ellipsis">
+                                    <div className="px-1 text-[11px] leading-4 text-white whitespace-nowrap overflow-hidden text-ellipsis">
                                         {it.name}
                                     </div>
                                 </div>
@@ -624,7 +624,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                                                 border: `1px solid ${col.border}`,
                                             }}
                                         >
-                                            <div className="px-1 text-[11px] leading-4 text-gray-100 whitespace-nowrap overflow-hidden text-ellipsis">
+                                            <div className="px-1 text-[11px] leading-4 text-white whitespace-nowrap overflow-hidden text-ellipsis">
                                                 {it.name}
                                             </div>
                                         </div>
@@ -654,7 +654,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     const top = Math.max(8, Math.min(hoverClientY + pad + extraY, vh - (maxH + 20)));
                     return (
                         <div style={{ position: 'fixed', left, top, zIndex: 9999, pointerEvents: 'none' }}>
-                            <div className="rounded border border-gray-700 bg-gray-900/95 shadow-lg p-1">
+                            <div className="rounded border border-border bg-card/95 shadow-lg p-1">
                                 <img src={hoverImg} alt="preview" style={{ maxWidth: maxW, maxHeight: maxH, objectFit: 'contain' }} />
                             </div>
                         </div>
@@ -669,7 +669,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={() => panByPx(width * 0.5)}
-                        className="h-8 w-8 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
+                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
                         title="Scroll left"
                         aria-label="Scroll left"
                     >
@@ -678,7 +678,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={() => panByPx(-width * 0.5)}
-                        className="h-8 w-8 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
+                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
                         title="Scroll right"
                         aria-label="Scroll right"
                     >
@@ -687,16 +687,16 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={goToNow}
-                        className="h-8 px-2 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
+                        className="h-8 px-2 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
                         title="Go to now (Space)"
                         aria-label="Go to now"
                     >
                         Now
                     </button>
-                    <label className="ml-4 inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Keep the right edge glued to current time">
+                    <label className="ml-4 inline-flex items-center gap-2 text-sm text-muted-foreground select-none" title="Keep the right edge glued to current time">
                         <input
                             type="checkbox"
-                            className="accent-cyan-500"
+                            className="accent-primary"
                             checked={glueNow}
                             onChange={(e) => setGlueNow(e.target.checked)}
                         />
@@ -708,7 +708,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={() => zoomBy(0.8, width / 2)}
-                        className="h-8 w-8 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
+                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
                         title="Zoom in"
                         aria-label="Zoom in"
                     >
@@ -717,7 +717,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     <button
                         type="button"
                         onClick={() => zoomBy(1.25, width / 2)}
-                        className="h-8 w-8 rounded-md bg-gray-800/90 text-gray-100 border border-gray-700 hover:bg-gray-700 active:scale-[0.98]"
+                        className="h-8 w-8 rounded-md bg-card text-foreground border border-border hover:bg-accent active:scale-[0.98]"
                         title="Zoom out"
                         aria-label="Zoom out"
                     >

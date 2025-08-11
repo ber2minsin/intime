@@ -1,4 +1,6 @@
 import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export type WindowUsage = {
     id: string; // unique event id
@@ -29,11 +31,6 @@ function fmtDuration(ms: number) {
 }
 
 const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) => {
-    const TITLE_W = 260;
-    const START_W = 160;
-    const END_W = 160;
-    const DUR_W = 96;
-
     // total should reflect only the active selection when present; otherwise sum all rows
     const totalDuration = React.useMemo(() => {
         if (selectedKeys && selectedKeys.size > 0) {
@@ -100,87 +97,100 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
     const headerArrow = (key: 'title' | 'start' | 'end' | 'duration') => sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : '';
 
     return (
-        <div className="bg-gray-900 border border-gray-800 rounded h-full overflow-auto">
-            <div className="px-3 py-2 text-sm text-gray-400">Active windows</div>
-            <div className="overflow-auto">
-                <table className="w-full table-fixed text-sm">
-                    <colgroup>
-                        <col style={{ width: `${TITLE_W}px` }} />
-                        <col style={{ width: `${START_W}px` }} />
-                        <col style={{ width: `${END_W}px` }} />
-                        <col style={{ width: `${DUR_W}px` }} />
-                    </colgroup>
-                    <thead className="sticky top-0 bg-gray-900 z-10">
-                        <tr className="text-gray-300 border-b border-gray-800 select-none">
-                            <th
-                                className="text-left font-medium px-3 py-2 cursor-pointer"
-                                onClick={() => cycleSort('title')}
-                                aria-sort={sort.key === 'title' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                                title="Sort by title"
-                            >
-                                <span className="inline-flex items-center gap-1">Title <span className="text-xs opacity-70">{headerArrow('title')}</span></span>
-                            </th>
-                            <th
-                                className="text-left font-medium px-3 py-2 cursor-pointer"
-                                onClick={() => cycleSort('start')}
-                                aria-sort={sort.key === 'start' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                                title="Sort by start time"
-                            >
-                                <span className="inline-flex items-center gap-1">Start <span className="text-xs opacity-70">{headerArrow('start')}</span></span>
-                            </th>
-                            <th
-                                className="text-left font-medium px-3 py-2 cursor-pointer"
-                                onClick={() => cycleSort('end')}
-                                aria-sort={sort.key === 'end' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                                title="Sort by end time"
-                            >
-                                <span className="inline-flex items-center gap-1">End <span className="text-xs opacity-70">{headerArrow('end')}</span></span>
-                            </th>
-                            <th
-                                className="text-right font-medium px-3 py-2 cursor-pointer"
-                                onClick={() => cycleSort('duration')}
-                                aria-sort={sort.key === 'duration' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                                title="Sort by duration"
-                            >
-                                <span className="inline-flex items-center gap-1 justify-end w-full">Duration <span className="text-xs opacity-70">{headerArrow('duration')}</span></span>
-                            </th>
-                        </tr>
-                        <tr className="border-b border-gray-700 bg-gray-800/40">
-                            <th className="text-left font-semibold px-3 py-2 text-gray-100">Total</th>
-                            <th className="px-3 py-2 text-gray-400"></th>
-                            <th className="px-3 py-2 text-gray-400"></th>
-                            <th className="px-3 py-2 text-right font-mono font-semibold text-amber-300">{fmtDuration(totalDuration)}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sortedRows.map((r) => {
-                            const key = r.id;
-                            const hasSel = !!selectedKeys && selectedKeys.size > 0;
-                            const isSelected = !hasSel || selectedKeys!.has(key);
-                            return (
-                                <tr
-                                    key={r.id}
-                                    className="border-b border-gray-800/60 hover:bg-gray-800/40 cursor-pointer"
-                                    style={{ opacity: isSelected ? 1 : 0.4 }}
-                                    onClick={() => onSelectRow?.(hasSel && selectedKeys!.has(key) && selectedKeys!.size === 1 ? null : key)}
+        <Card className="h-full flex flex-col min-w-0 flex-1">
+            <CardHeader className="pb-3 flex-shrink-0">
+                <CardTitle className="text-sm text-muted-foreground">Active windows</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-0 min-w-0 min-h-0">
+                <div className="overflow-x-auto">
+                    <Table className="w-full">
+                        <TableHeader className="sticky top-0 bg-background z-10">
+                            <TableRow className="border-border">
+                                <TableHead
+                                    className="text-foreground cursor-pointer font-medium w-[35%] sm:w-[30%] md:w-[35%] lg:w-[40%]"
+                                    onClick={() => cycleSort('title')}
+                                    title="Sort by title"
                                 >
-                                    <td className="px-3 py-2 text-gray-200 whitespace-nowrap overflow-hidden text-ellipsis" title={r.title}>{r.title}</td>
-                                    <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{fmtTime(r.startMs)}</td>
-                                    <td className="px-3 py-2 text-gray-300 whitespace-nowrap">{fmtTime(r.endMs)}</td>
-                                    <td className="px-3 py-2 text-gray-200 text-right font-mono">{fmtDuration(r.durationMs)}</td>
-                                </tr>
-                            );
-                        })}
-                        {rows.length === 0 && (
-                            <tr>
-                                <td colSpan={4} className="px-3 py-6 text-center text-xs text-gray-500">No window activity in the current range.</td>
-                            </tr>
-                        )}
-                    </tbody>
-                    {/* total row moved to the top (header) */}
-                </table>
-            </div>
-        </div>
+                                    <span className="inline-flex items-center gap-1">
+                                        Title <span className="text-xs opacity-70">{headerArrow('title')}</span>
+                                    </span>
+                                </TableHead>
+                                <TableHead
+                                    className="text-foreground cursor-pointer font-medium hidden sm:table-cell w-[35%] md:w-[30%] lg:w-[25%]"
+                                    onClick={() => cycleSort('start')}
+                                    title="Sort by start time"
+                                >
+                                    <span className="inline-flex items-center gap-1">
+                                        Start <span className="text-xs opacity-70">{headerArrow('start')}</span>
+                                    </span>
+                                </TableHead>
+                                <TableHead
+                                    className="text-foreground cursor-pointer font-medium hidden md:table-cell w-[25%] lg:w-[25%]"
+                                    onClick={() => cycleSort('end')}
+                                    title="Sort by end time"
+                                >
+                                    <span className="inline-flex items-center gap-1">
+                                        End <span className="text-xs opacity-70">{headerArrow('end')}</span>
+                                    </span>
+                                </TableHead>
+                                <TableHead
+                                    className="text-foreground cursor-pointer font-medium text-right w-[65%] sm:w-[35%] md:w-[10%]"
+                                    onClick={() => cycleSort('duration')}
+                                    title="Sort by duration"
+                                >
+                                    <span className="inline-flex items-center gap-1 justify-end w-full">
+                                        Duration <span className="text-xs opacity-70">{headerArrow('duration')}</span>
+                                    </span>
+                                </TableHead>
+                            </TableRow>
+                            <TableRow className="border-border bg-muted/50">
+                                <TableCell className="text-foreground font-semibold">Total</TableCell>
+                                <TableCell className="text-muted-foreground hidden sm:table-cell"></TableCell>
+                                <TableCell className="text-muted-foreground hidden md:table-cell"></TableCell>
+                                <TableCell className="text-right font-mono font-semibold text-primary">
+                                    {fmtDuration(totalDuration)}
+                                </TableCell>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {sortedRows.map((r) => {
+                                const key = r.id;
+                                const hasSel = !!selectedKeys && selectedKeys.size > 0;
+                                const isSelected = !hasSel || selectedKeys!.has(key);
+                                return (
+                                    <TableRow
+                                        key={r.id}
+                                        className="border-border hover:bg-accent cursor-pointer transition-colors"
+                                        style={{ opacity: isSelected ? 1 : 0.4 }}
+                                        onClick={() => onSelectRow?.(hasSel && selectedKeys!.has(key) && selectedKeys!.size === 1 ? null : key)}
+                                    >
+                                        <TableCell className="text-foreground max-w-0" title={r.title}>
+                                            <div className="truncate pr-2">{r.title}</div>
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden sm:table-cell">
+                                            {fmtTime(r.startMs)}
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell">
+                                            {fmtTime(r.endMs)}
+                                        </TableCell>
+                                        <TableCell className="text-foreground text-right font-mono">
+                                            {fmtDuration(r.durationMs)}
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                            {rows.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-6">
+                                        No window activity in the current range.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
     );
 };
 

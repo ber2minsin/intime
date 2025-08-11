@@ -4,6 +4,13 @@ import Timeline from "./components/Timeline";
 import AppUsageList from "./components/AppUsageList";
 import WindowUsageTable from "./components/WindowUsageTable";
 import { SelectionProvider, useSelection } from "./state/selection";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sun, Moon, Monitor, Palette } from "lucide-react";
 
 type Row = { app_id: number; app_name: string; window_title: string; event_type: string; created_at_sec: number };
 
@@ -14,8 +21,48 @@ function AppInner() {
   // UI state: tabs and settings
   const [activeTab, setActiveTab] = useState<'timeline' | 'settings'>(() => (localStorage.getItem('activeTab') as any) || 'timeline');
   const [hoverMagnifySetting, setHoverMagnifySetting] = useState<boolean>(() => localStorage.getItem('hoverMagnify') === '1');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'dark-blue' | 'system'>(() => (localStorage.getItem('theme') as any) || 'dark');
+
   useEffect(() => { localStorage.setItem('activeTab', activeTab); }, [activeTab]);
   useEffect(() => { localStorage.setItem('hoverMagnify', hoverMagnifySetting ? '1' : '0'); }, [hoverMagnifySetting]);
+  useEffect(() => { localStorage.setItem('theme', theme); }, [theme]);
+
+  // Apply theme to document
+  useEffect(() => {
+    const root = document.documentElement;
+
+    // Remove all theme classes first
+    root.classList.remove('dark', 'dark-blue');
+
+    if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        root.classList.add('dark');
+      }
+    } else if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'dark-blue') {
+      root.classList.add('dark-blue');
+    }
+    // light theme doesn't need any classes
+  }, [theme]);
+
+  // Listen for system theme changes when in system mode
+  useEffect(() => {
+    if (theme !== 'system') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      const root = document.documentElement;
+      root.classList.remove('dark', 'dark-blue');
+      if (mediaQuery.matches) {
+        root.classList.add('dark');
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
   // no local selection state; selection is represented by global selectedIds
   const [fullImage, setFullImage] = useState<{ url: string; createdAtSec?: number } | null>(null);
   const { selectedIds, setSelectedIds, clearSelected } = useSelection();
@@ -334,117 +381,172 @@ function AppInner() {
   }, [selectedIds]);
 
   return (
-    <div className="bg-gray-950 text-gray-100 h-screen space-y-4 mx-auto px-4 py-4 overflow-hidden flex flex-col">
-      {/* Tabs header */}
-      <div className="flex items-center gap-2 border-b border-gray-800 pb-2">
-        <button
-          className={`px-3 py-1 rounded ${activeTab === 'timeline' ? 'bg-gray-800 text-gray-100 border border-gray-700' : 'text-gray-300 hover:bg-gray-800/50 border border-transparent'}`}
-          onClick={() => setActiveTab('timeline')}
-        >Timeline</button>
-        <button
-          className={`px-3 py-1 rounded ${activeTab === 'settings' ? 'bg-gray-800 text-gray-100 border border-gray-700' : 'text-gray-300 hover:bg-gray-800/50 border border-transparent'}`}
-          onClick={() => setActiveTab('settings')}
-        >Settings</button>
-        <div className="flex-1" />
-      </div>
+    <div className="bg-background text-foreground h-screen space-y-4 mx-auto px-4 py-4 overflow-hidden flex flex-col">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'timeline' | 'settings')} className="flex-1 flex flex-col">
+        <TabsList className="grid w-[200px] grid-cols-2">
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
 
-      {activeTab === 'timeline' && (
-        <Timeline
-          items={items}
-          onViewportChange={onViewportChange}
-          onSelectionChange={(range) => {
-            if (!range) { clearSelected(); return; }
-            const start = Math.min(range.startMs, range.endMs);
-            const end = Math.max(range.startMs, range.endMs);
-            if (start === end) {
-              // simple click on timeline: select the event under that time, if any
-              const t = start;
-              const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
-              if (found) setSelectedIds([found.id]); else clearSelected();
-              return;
-            }
-            // selecting by dragging: choose events that overlap the selection (clamp selection to now)
-            const nowMs = Date.now();
-            const selStart = Math.min(start, nowMs);
-            const selEnd = Math.min(end, nowMs);
-            if (selEnd <= selStart) {
-              // selection entirely in future -> treat as click at now
-              const t = nowMs;
-              const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
-              if (found) setSelectedIds([found.id]); else clearSelected();
-              return;
-            }
-            const ids = items.filter(it => {
-              const a = it.start.getTime();
-              const b = it.end.getTime();
-              // overlap if max(start) < min(end)
-              return Math.max(a, selStart) < Math.min(b, selEnd);
-            }).map(it => it.id);
-            setSelectedIds(ids);
-          }}
-          onOpenFullImage={handleOpenFullImage}
-          selectedIds={selectedIds}
-          hoverMagnify={hoverMagnifySetting}
-        />
-      )}
-      {activeTab === 'settings' && (
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-xl mt-4 space-y-6">
-            <div>
-              <div className="text-lg font-semibold mb-2">Display</div>
-              <label className="inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Magnify hovered item to make tiny items easier to see (visual only)">
-                <input
-                  type="checkbox"
-                  className="accent-cyan-500"
-                  checked={hoverMagnifySetting}
-                  onChange={(e) => setHoverMagnifySetting(e.target.checked)}
-                />
-                Hover magnify on timeline
-              </label>
-            </div>
-          </div>
-        </div>
-      )}
-      {fullImage ? (
-        <div className="flex-1 overflow-auto bg-black/70 rounded border border-gray-800 relative">
-          <button
-            className="absolute top-2 right-2 z-10 px-2 py-1 text-xs rounded bg-gray-800 text-gray-100 border border-gray-700 hover:bg-gray-700"
-            onClick={() => setFullImage((cur) => { if (cur?.url) URL.revokeObjectURL(cur.url); return null; })}
-            aria-label="Close full image"
-            title="Close (Esc)"
-          >Close</button>
-          <div className="p-4">
-            <img src={fullImage.url} alt="screenshot" className="block" />
-            {fullImage.createdAtSec && (
-              <div className="mt-2 text-xs text-gray-300">Captured: {new Date(fullImage.createdAtSec * 1000).toLocaleString()}</div>
-            )}
-          </div>
-        </div>
-      ) : (
-        activeTab === 'timeline' && <div className="flex flex-1 overflow-auto gap-4 h-full">
-          <AppUsageList
-            usages={usages}
-            selectedAppIds={selectedAppIds}
-            onSelectApp={(appId) => {
-              if (appId == null) { clearSelected(); return; }
-              const current = selectedAppIds;
-              if (current.size === 1 && current.has(appId)) { clearSelected(); return; }
-              const ids = appToItemIdsRef.current.get(appId) ?? [];
+        <TabsContent value="timeline" className="flex-1 flex flex-col gap-4 min-h-0 overflow-hidden">
+          <Timeline
+            items={items}
+            onViewportChange={onViewportChange}
+            onSelectionChange={(range) => {
+              if (!range) { clearSelected(); return; }
+              const start = Math.min(range.startMs, range.endMs);
+              const end = Math.max(range.startMs, range.endMs);
+              if (start === end) {
+                // simple click on timeline: select the event under that time, if any
+                const t = start;
+                const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
+                if (found) setSelectedIds([found.id]); else clearSelected();
+                return;
+              }
+              // selecting by dragging: choose events that overlap the selection (clamp selection to now)
+              const nowMs = Date.now();
+              const selStart = Math.min(start, nowMs);
+              const selEnd = Math.min(end, nowMs);
+              if (selEnd <= selStart) {
+                // selection entirely in future -> treat as click at now
+                const t = nowMs;
+                const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
+                if (found) setSelectedIds([found.id]); else clearSelected();
+                return;
+              }
+              const ids = items.filter(it => {
+                const a = it.start.getTime();
+                const b = it.end.getTime();
+                // overlap if max(start) < min(end)
+                return Math.max(a, selStart) < Math.min(b, selEnd);
+              }).map(it => it.id);
               setSelectedIds(ids);
             }}
+            onOpenFullImage={handleOpenFullImage}
+            selectedIds={selectedIds}
+            hoverMagnify={hoverMagnifySetting}
           />
-          <WindowUsageTable
-            rows={windowRows}
-            selectedKeys={selectedIds}
-            onSelectRow={(id) => {
-              if (!id) { clearSelected(); return; }
-              const onlyThis = selectedIds.size === 1 && selectedIds.has(id);
-              if (onlyThis) { clearSelected(); return; }
-              setSelectedIds([id]);
-            }}
-          />
-        </div>
-      )}
+
+          {fullImage ? (
+            <Card className="flex-1 overflow-auto bg-black/70 relative min-h-0">
+              <CardContent className="p-0 relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute top-2 right-2 z-10"
+                  onClick={() => setFullImage((cur) => { if (cur?.url) URL.revokeObjectURL(cur.url); return null; })}
+                  aria-label="Close full image"
+                  title="Close (Esc)"
+                >
+                  Close
+                </Button>
+                <div className="p-4">
+                  <img src={fullImage.url} alt="screenshot" className="block" />
+                  {fullImage.createdAtSec && (
+                    <div className="mt-2 text-xs text-muted-foreground">Captured: {new Date(fullImage.createdAtSec * 1000).toLocaleString()}</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex flex-1 gap-4 min-h-0 overflow-hidden" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+              <AppUsageList
+                usages={usages}
+                selectedAppIds={selectedAppIds}
+                onSelectApp={(appId) => {
+                  if (appId == null) { clearSelected(); return; }
+                  const current = selectedAppIds;
+                  if (current.size === 1 && current.has(appId)) { clearSelected(); return; }
+                  const ids = appToItemIdsRef.current.get(appId) ?? [];
+                  setSelectedIds(ids);
+                }}
+              />
+              <WindowUsageTable
+                rows={windowRows}
+                selectedKeys={selectedIds}
+                onSelectRow={(id) => {
+                  if (!id) { clearSelected(); return; }
+                  const onlyThis = selectedIds.size === 1 && selectedIds.has(id);
+                  if (onlyThis) { clearSelected(); return; }
+                  setSelectedIds([id]);
+                }}
+              />
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="settings" className="flex-1 overflow-auto">
+          <div className="space-y-4">
+            <Card className="max-w-xl">
+              <CardHeader>
+                <CardTitle>Appearance</CardTitle>
+                <CardDescription>Customize the look and feel of the application</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="theme-select">Theme</Label>
+                  <Select value={theme} onValueChange={(value: 'light' | 'dark' | 'dark-blue' | 'system') => setTheme(value)}>
+                    <SelectTrigger id="theme-select" className="w-full">
+                      <SelectValue placeholder="Select theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">
+                        <div className="flex items-center gap-2">
+                          <Sun className="h-4 w-4" />
+                          Light
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="dark">
+                        <div className="flex items-center gap-2">
+                          <Moon className="h-4 w-4" />
+                          Dark
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="dark-blue">
+                        <div className="flex items-center gap-2">
+                          <Palette className="h-4 w-4" />
+                          Dark Blue
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="system">
+                        <div className="flex items-center gap-2">
+                          <Monitor className="h-4 w-4" />
+                          System
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose your preferred theme or use system preference
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="max-w-xl">
+              <CardHeader>
+                <CardTitle>Display Settings</CardTitle>
+                <CardDescription>Customize how the timeline is displayed</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="hover-magnify"
+                    checked={hoverMagnifySetting}
+                    onCheckedChange={setHoverMagnifySetting}
+                  />
+                  <Label htmlFor="hover-magnify" className="text-sm text-foreground">
+                    Hover magnify on timeline
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Magnify hovered item to make tiny items easier to see (visual only)
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
