@@ -63,7 +63,7 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
     // search state
     const [searchQuery, setSearchQuery] = React.useState("");
     const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState("");
-    
+
     // Debounce search query for better performance
     React.useEffect(() => {
         const timer = setTimeout(() => {
@@ -71,11 +71,11 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
         }, 300);
         return () => clearTimeout(timer);
     }, [searchQuery]);
-    
+
     // pagination state
     const [currentPage, setCurrentPage] = React.useState(1);
     const [pageSize, setPageSize] = React.useState(50);
-    
+
     // Reset to page 1 when search query changes
     React.useEffect(() => {
         setCurrentPage(1);
@@ -136,7 +136,7 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
     const filteredRows = React.useMemo(() => {
         if (!debouncedSearchQuery.trim()) return sortedByKey;
         const query = debouncedSearchQuery.toLowerCase().trim();
-        return sortedByKey.filter(row => 
+        return sortedByKey.filter(row =>
             row.title.toLowerCase().includes(query)
         );
     }, [sortedByKey, debouncedSearchQuery]);
@@ -165,7 +165,7 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
     // pagination controls
     const canGoPrevious = currentPage > 1;
     const canGoNext = currentPage < totalPages;
-    
+
     const goToPage = (page: number) => {
         setCurrentPage(Math.max(1, Math.min(page, totalPages)));
     };
@@ -280,7 +280,7 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
                         </TableBody>
                     </Table>
                 </div>
-                
+
                 {/* Pagination Controls */}
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/20">
@@ -288,8 +288,8 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
                             <span>
                                 Showing {startIndex + 1} to {endIndex} of {totalRows} {totalRows === 1 ? 'window' : 'windows'}
                             </span>
-                            <select 
-                                value={pageSize} 
+                            <select
+                                value={pageSize}
                                 onChange={(e) => {
                                     const newSize = parseInt(e.target.value);
                                     setPageSize(newSize);
@@ -303,7 +303,7 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
                                 <option value={200}>200 per page</option>
                             </select>
                         </div>
-                        
+
                         <div className="flex items-center gap-1">
                             <Button
                                 variant="outline"
@@ -323,7 +323,7 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
-                            
+
                             <div className="flex items-center gap-1 mx-2">
                                 <span className="text-sm text-muted-foreground">Page</span>
                                 <input
@@ -341,7 +341,7 @@ const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSe
                                 />
                                 <span className="text-sm text-muted-foreground">of {totalPages}</span>
                             </div>
-                            
+
                             <Button
                                 variant="outline"
                                 size="sm"

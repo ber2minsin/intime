@@ -300,7 +300,7 @@ function AppInner() {
     evRowsSel.sort((a, b) => b.startMs - a.startMs);
     setWindowRows(evRowsSel);
     const totalMsSel = Array.from(accSel.values()).reduce((s, v) => s + v.durationMs, 0);
-    
+
     // Build usage array including all apps (to show dimmed ones), but with selection-based percentages
     const allAppIds = new Set<number>();
     for (const r of rows) {
@@ -310,7 +310,7 @@ function AppInner() {
     if (clickedAppId != null) {
       allAppIds.add(clickedAppId);
     }
-    
+
     const usageSel = Array.from(allAppIds).map((appId) => {
       const selData = accSel.get(appId);
       const appName = selData?.appName || rows.find(r => r.app_id === appId)?.app_name || `App ${appId}`;
@@ -338,10 +338,10 @@ function AppInner() {
             items={items}
             onViewportChange={onViewportChange}
             onSelectionChange={(range) => {
-              if (!range) { 
-                clearSelected(); 
+              if (!range) {
+                clearSelected();
                 setClickedAppId(null);
-                return; 
+                return;
               }
               const start = Math.min(range.startMs, range.endMs);
               const end = Math.max(range.startMs, range.endMs);
@@ -350,7 +350,7 @@ function AppInner() {
                 const t = start;
                 const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
                 if (found) {
-                  setSelectedIds([found.id]); 
+                  setSelectedIds([found.id]);
                   setClickedAppId(null);
                 } else {
                   clearSelected();
@@ -367,7 +367,7 @@ function AppInner() {
                 const t = nowMs;
                 const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
                 if (found) {
-                  setSelectedIds([found.id]); 
+                  setSelectedIds([found.id]);
                   setClickedAppId(null);
                 } else {
                   clearSelected();
@@ -416,16 +416,16 @@ function AppInner() {
                 usages={usages}
                 selectedAppIds={selectedAppIds}
                 onSelectApp={(appId) => {
-                  if (appId == null) { 
-                    clearSelected(); 
+                  if (appId == null) {
+                    clearSelected();
                     setClickedAppId(null);
-                    return; 
+                    return;
                   }
                   const current = selectedAppIds;
-                  if (current.size === 1 && current.has(appId)) { 
-                    clearSelected(); 
+                  if (current.size === 1 && current.has(appId)) {
+                    clearSelected();
                     setClickedAppId(null);
-                    return; 
+                    return;
                   }
                   setClickedAppId(appId);
                   const ids = appToItemIdsRef.current.get(appId) ?? [];
@@ -436,16 +436,16 @@ function AppInner() {
                 rows={windowRows}
                 selectedKeys={selectedIds}
                 onSelectRow={(id) => {
-                  if (!id) { 
-                    clearSelected(); 
+                  if (!id) {
+                    clearSelected();
                     setClickedAppId(null);
-                    return; 
+                    return;
                   }
                   const onlyThis = selectedIds.size === 1 && selectedIds.has(id);
-                  if (onlyThis) { 
-                    clearSelected(); 
+                  if (onlyThis) {
+                    clearSelected();
                     setClickedAppId(null);
-                    return; 
+                    return;
                   }
                   setSelectedIds([id]);
                   setClickedAppId(null);
