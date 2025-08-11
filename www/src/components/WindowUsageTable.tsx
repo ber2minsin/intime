@@ -2,7 +2,8 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 export type WindowUsage = {
     id: string; // unique event id
@@ -32,9 +33,53 @@ function fmtDuration(ms: number) {
     return `${hh}:${mm}:${ss}`;
 }
 
-const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) => {
+// Memoized row component for better performance
+const TableRowMemoized = React.memo<{
+    row: WindowUsage;
+    isSelected: boolean;
+    onSelect: () => void;
+}>(({ row, isSelected, onSelect }) => (
+    <TableRow
+        className="border-border hover:bg-accent cursor-pointer transition-colors"
+        style={{ opacity: isSelected ? 1 : 0.4 }}
+        onClick={onSelect}
+    >
+        <TableCell className="text-foreground max-w-0 w-[35%] sm:w-[30%] md:w-[35%] lg:w-[40%]" title={row.title}>
+            <div className="truncate pr-2">{row.title}</div>
+        </TableCell>
+        <TableCell className="text-muted-foreground whitespace-nowrap hidden sm:table-cell w-[35%] md:w-[30%] lg:w-[25%]">
+            {fmtTime(row.startMs)}
+        </TableCell>
+        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell w-[25%] lg:w-[25%]">
+            {fmtTime(row.endMs)}
+        </TableCell>
+        <TableCell className="text-foreground text-right font-mono w-[65%] sm:w-[35%] md:w-[10%]">
+            {fmtDuration(row.durationMs)}
+        </TableCell>
+    </TableRow>
+));
+
+const WindowUsageTable: React.FC<Props> = React.memo(({ rows, selectedKeys, onSelectRow }) => {
     // search state
     const [searchQuery, setSearchQuery] = React.useState("");
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState("");
+    
+    // Debounce search query for better performance
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+    
+    // pagination state
+    const [currentPage, setCurrentPage] = React.useState(1);
+    const [pageSize, setPageSize] = React.useState(50);
+    
+    // Reset to page 1 when search query changes
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearchQuery, rows.length]);
 
     // total should reflect only the active selection when present; otherwise sum all rows
     const totalDuration = React.useMemo(() => {
@@ -89,12 +134,12 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
 
     // filter rows based on search query
     const filteredRows = React.useMemo(() => {
-        if (!searchQuery.trim()) return sortedByKey;
-        const query = searchQuery.toLowerCase().trim();
+        if (!debouncedSearchQuery.trim()) return sortedByKey;
+        const query = debouncedSearchQuery.toLowerCase().trim();
         return sortedByKey.filter(row => 
             row.title.toLowerCase().includes(query)
         );
-    }, [sortedByKey, searchQuery]);
+    }, [sortedByKey, debouncedSearchQuery]);
 
     // move selected rows to the top; within groups, respect sort
     const sortedRows = React.useMemo(() => {
@@ -107,6 +152,23 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
         }
         return [...sel, ...rest];
     }, [filteredRows, selectedKeys]);
+
+    // pagination logic
+    const totalRows = sortedRows.length;
+    const totalPages = Math.ceil(totalRows / pageSize);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalRows);
+    const paginatedRows = React.useMemo(() => {
+        return sortedRows.slice(startIndex, endIndex);
+    }, [sortedRows, startIndex, endIndex]);
+
+    // pagination controls
+    const canGoPrevious = currentPage > 1;
+    const canGoNext = currentPage < totalPages;
+    
+    const goToPage = (page: number) => {
+        setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    };
 
     const headerArrow = (key: 'title' | 'start' | 'end' | 'duration') => sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : '';
 
@@ -188,30 +250,17 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {sortedRows.map((r) => {
+                            {paginatedRows.map((r) => {
                                 const key = r.id;
                                 const hasSel = !!selectedKeys && selectedKeys.size > 0;
                                 const isSelected = !hasSel || selectedKeys!.has(key);
                                 return (
-                                    <TableRow
+                                    <TableRowMemoized
                                         key={r.id}
-                                        className="border-border hover:bg-accent cursor-pointer transition-colors"
-                                        style={{ opacity: isSelected ? 1 : 0.4 }}
-                                        onClick={() => onSelectRow?.(hasSel && selectedKeys!.has(key) && selectedKeys!.size === 1 ? null : key)}
-                                    >
-                                        <TableCell className="text-foreground max-w-0 w-[35%] sm:w-[30%] md:w-[35%] lg:w-[40%]" title={r.title}>
-                                            <div className="truncate pr-2">{r.title}</div>
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden sm:table-cell w-[35%] md:w-[30%] lg:w-[25%]">
-                                            {fmtTime(r.startMs)}
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground whitespace-nowrap hidden md:table-cell w-[25%] lg:w-[25%]">
-                                            {fmtTime(r.endMs)}
-                                        </TableCell>
-                                        <TableCell className="text-foreground text-right font-mono w-[65%] sm:w-[35%] md:w-[10%]">
-                                            {fmtDuration(r.durationMs)}
-                                        </TableCell>
-                                    </TableRow>
+                                        row={r}
+                                        isSelected={isSelected}
+                                        onSelect={() => onSelectRow?.(hasSel && selectedKeys!.has(key) && selectedKeys!.size === 1 ? null : key)}
+                                    />
                                 );
                             })}
                             {rows.length === 0 && (
@@ -221,12 +270,102 @@ const WindowUsageTable: React.FC<Props> = ({ rows, selectedKeys, onSelectRow }) 
                                     </TableCell>
                                 </TableRow>
                             )}
+                            {rows.length > 0 && filteredRows.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-6">
+                                        No windows match your search.
+                                    </TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </div>
+                
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/20">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>
+                                Showing {startIndex + 1} to {endIndex} of {totalRows} {totalRows === 1 ? 'window' : 'windows'}
+                            </span>
+                            <select 
+                                value={pageSize} 
+                                onChange={(e) => {
+                                    const newSize = parseInt(e.target.value);
+                                    setPageSize(newSize);
+                                    setCurrentPage(1);
+                                }}
+                                className="ml-2 px-2 py-1 text-xs border border-border rounded bg-background"
+                            >
+                                <option value={25}>25 per page</option>
+                                <option value={50}>50 per page</option>
+                                <option value={100}>100 per page</option>
+                                <option value={200}>200 per page</option>
+                            </select>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => goToPage(1)}
+                                disabled={!canGoPrevious}
+                                className="h-8 w-8 p-0"
+                            >
+                                <ChevronsLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => goToPage(currentPage - 1)}
+                                disabled={!canGoPrevious}
+                                className="h-8 w-8 p-0"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            
+                            <div className="flex items-center gap-1 mx-2">
+                                <span className="text-sm text-muted-foreground">Page</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={totalPages}
+                                    value={currentPage}
+                                    onChange={(e) => {
+                                        const page = parseInt(e.target.value);
+                                        if (!isNaN(page)) {
+                                            goToPage(page);
+                                        }
+                                    }}
+                                    className="w-16 px-2 py-1 text-sm text-center border border-border rounded bg-background"
+                                />
+                                <span className="text-sm text-muted-foreground">of {totalPages}</span>
+                            </div>
+                            
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => goToPage(currentPage + 1)}
+                                disabled={!canGoNext}
+                                className="h-8 w-8 p-0"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => goToPage(totalPages)}
+                                disabled={!canGoNext}
+                                className="h-8 w-8 p-0"
+                            >
+                                <ChevronsRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
-};
+});
 
 export default WindowUsageTable;

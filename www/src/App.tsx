@@ -221,6 +221,7 @@ function AppInner() {
           return null;
         });
         clearSelected();
+        setClickedAppId(null);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -337,14 +338,24 @@ function AppInner() {
             items={items}
             onViewportChange={onViewportChange}
             onSelectionChange={(range) => {
-              if (!range) { clearSelected(); return; }
+              if (!range) { 
+                clearSelected(); 
+                setClickedAppId(null);
+                return; 
+              }
               const start = Math.min(range.startMs, range.endMs);
               const end = Math.max(range.startMs, range.endMs);
               if (start === end) {
                 // simple click on timeline: select the event under that time, if any
                 const t = start;
                 const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
-                if (found) setSelectedIds([found.id]); else clearSelected();
+                if (found) {
+                  setSelectedIds([found.id]); 
+                  setClickedAppId(null);
+                } else {
+                  clearSelected();
+                  setClickedAppId(null);
+                }
                 return;
               }
               // selecting by dragging: choose events that overlap the selection (clamp selection to now)
@@ -355,7 +366,13 @@ function AppInner() {
                 // selection entirely in future -> treat as click at now
                 const t = nowMs;
                 const found = items.find(it => t >= it.start.getTime() && t <= it.end.getTime());
-                if (found) setSelectedIds([found.id]); else clearSelected();
+                if (found) {
+                  setSelectedIds([found.id]); 
+                  setClickedAppId(null);
+                } else {
+                  clearSelected();
+                  setClickedAppId(null);
+                }
                 return;
               }
               const ids = items.filter(it => {
@@ -365,6 +382,7 @@ function AppInner() {
                 return Math.max(a, selStart) < Math.min(b, selEnd);
               }).map(it => it.id);
               setSelectedIds(ids);
+              setClickedAppId(null);
             }}
             onOpenFullImage={handleOpenFullImage}
             selectedIds={selectedIds}
@@ -418,10 +436,19 @@ function AppInner() {
                 rows={windowRows}
                 selectedKeys={selectedIds}
                 onSelectRow={(id) => {
-                  if (!id) { clearSelected(); return; }
+                  if (!id) { 
+                    clearSelected(); 
+                    setClickedAppId(null);
+                    return; 
+                  }
                   const onlyThis = selectedIds.size === 1 && selectedIds.has(id);
-                  if (onlyThis) { clearSelected(); return; }
+                  if (onlyThis) { 
+                    clearSelected(); 
+                    setClickedAppId(null);
+                    return; 
+                  }
                   setSelectedIds([id]);
+                  setClickedAppId(null);
                 }}
               />
             </div>
