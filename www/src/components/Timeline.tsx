@@ -658,10 +658,10 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                     >
                         Now
                     </button>
-            <label className="ml-4 inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Keep the right edge glued to current time">
+                    <label className="ml-4 inline-flex items-center gap-2 text-sm text-gray-300 select-none" title="Keep the right edge glued to current time">
                         <input
                             type="checkbox"
-                className="accent-cyan-500"
+                            className="accent-cyan-500"
                             checked={glueNow}
                             onChange={(e) => setGlueNow(e.target.checked)}
                         />
