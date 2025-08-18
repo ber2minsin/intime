@@ -1,5 +1,5 @@
 use crate::db::crud::{
-    get_saved_app, register_window_event, save_app, save_screenshot, update_app_path,
+    create_app, create_screenshot, create_window_event, get_saved_app, update_app_path,
 };
 use crate::db::models::DBApp;
 use crate::platform::screenshot::screenshot_window;
@@ -100,7 +100,7 @@ impl WindowEventProcessor {
                     app.id, app.name, app.path
                 );
 
-                let _ = register_window_event(
+                let _ = create_window_event(
                     &self.db_pool,
                     app.id.unwrap(),
                     event.title.clone(),
@@ -204,7 +204,7 @@ impl WindowEventProcessor {
             icon: None,
         };
 
-        save_app(&self.db_pool, &app).await?;
+        create_app(&self.db_pool, &app).await?;
 
         // Get the saved app with ID
         let saved_app = get_saved_app(&self.db_pool, &event.name)
@@ -269,7 +269,7 @@ async fn perform_screenshot_capture(
             }
 
             // Store PNG bytes in DB (was raw bytes before; this fixes blob format)
-            let _ = save_screenshot(db_pool, png_bytes, app_id).await;
+            let _ = create_screenshot(db_pool, png_bytes, app_id).await;
         }
         Ok(None) => {
             eprintln!("Failed to take screenshot for app: {}", app_name);

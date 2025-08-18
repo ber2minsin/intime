@@ -18,7 +18,7 @@ pub async fn get_saved_app(db_pool: &sqlx::SqlitePool, name: &str) -> Option<DBA
     .flatten()
 }
 
-pub async fn save_app(db_pool: &sqlx::SqlitePool, app: &DBApp) -> Result<(), sqlx::Error> {
+pub async fn create_app(db_pool: &sqlx::SqlitePool, app: &DBApp) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO app (name, path, icon) VALUES (?, ?, ?)",
         app.name,
@@ -41,7 +41,7 @@ pub async fn update_app_path(
     Ok(())
 }
 
-pub async fn register_window_event(
+pub async fn create_window_event(
     db_pool: &sqlx::Pool<sqlx::Sqlite>,
     app_id: i64,
     title: String,
@@ -59,7 +59,7 @@ pub async fn register_window_event(
     Ok(())
 }
 
-pub async fn save_screenshot(
+pub async fn create_screenshot(
     db_pool: &sqlx::Pool<sqlx::Sqlite>,
     image: Vec<u8>,
     app_id: i64,
