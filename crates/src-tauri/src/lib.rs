@@ -1,6 +1,7 @@
-use image::{DynamicImage, ImageFormat};
-use intime_core::{self as core, tracker::window_processor::WindowEventProcessor};
-use serde::Serialize;
+use image::ImageFormat;
+use intime_core::{
+    self as core, db::models::Screenshot, tracker::window_processor::WindowEventProcessor,
+};
 use sqlx::SqlitePool;
 use std::io::Cursor;
 use tauri::Manager as _;
@@ -15,7 +16,7 @@ async fn fetch_window_events(
     start_ms: i64,
     end_ms: i64,
     limit: Option<i64>,
-) -> Result<Vec<core::db::models::WindowEventRow>, String> {
+) -> Result<Vec<core::db::models::WindowEvent>, String> {
     let start_sec = start_ms / 1000;
     let end_sec = end_ms / 1000;
     core::db::crud::get_window_events_secs(&state.pool, start_sec, end_sec, limit.unwrap_or(2000))
@@ -23,19 +24,12 @@ async fn fetch_window_events(
         .map_err(|e| e.to_string())
 }
 
-#[derive(Serialize)]
-struct ScreenshotDto {
-    created_at_sec: i64,
-    app_id: i64,
-    png: Vec<u8>,
-}
-
 #[tauri::command]
 async fn get_nearest_screenshot(
     state: tauri::State<'_, AppState>,
     ts_ms: i64,
     app_id: Option<i64>,
-) -> Result<Option<ScreenshotDto>, String> {
+) -> Result<Option<Screenshot>, String> {
     let ts_sec = ts_ms / 1000;
     let res = core::db::crud::get_nearest_screenshot(&state.pool, ts_sec, app_id)
         .await
@@ -61,7 +55,8 @@ async fn get_nearest_screenshot(
                 Err(_) => bytes,
             }
         };
-        ScreenshotDto {
+        Screenshot {
+            id: s.id,
             created_at_sec: s.created_at_sec,
             app_id: s.app_id,
             png,

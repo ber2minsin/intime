@@ -1,14 +1,14 @@
 use crate::{
-    db::models::{ScreenshotBlob, WindowEventRow},
+    db::models::{Screenshot, WindowEvent},
     tracker::events::WindowEventType,
 };
 
-use super::models::DBApp;
+use super::models::App;
 use anyhow::Result;
 
-pub async fn get_saved_app(db_pool: &sqlx::SqlitePool, name: &str) -> Option<DBApp> {
+pub async fn get_saved_app(db_pool: &sqlx::SqlitePool, name: &str) -> Option<App> {
     sqlx::query_as!(
-        DBApp,
+        App,
         "SELECT id, name, path, icon FROM app WHERE name = ?",
         name,
     )
@@ -18,7 +18,7 @@ pub async fn get_saved_app(db_pool: &sqlx::SqlitePool, name: &str) -> Option<DBA
     .flatten()
 }
 
-pub async fn create_app(db_pool: &sqlx::SqlitePool, app: &DBApp) -> Result<(), sqlx::Error> {
+pub async fn create_app(db_pool: &sqlx::SqlitePool, app: &App) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO app (name, path, icon) VALUES (?, ?, ?)",
         app.name,
@@ -79,7 +79,7 @@ pub async fn get_window_events_secs(
     start_sec: i64,
     end_sec: i64,
     limit: i64,
-) -> Result<Vec<WindowEventRow>> {
+) -> Result<Vec<WindowEvent>> {
     let rows = sqlx::query!(
         r#"
         SELECT we.app_id as app_id,
@@ -102,7 +102,7 @@ pub async fn get_window_events_secs(
 
     let items = rows
         .into_iter()
-        .map(|r| WindowEventRow {
+        .map(|r| WindowEvent {
             app_id: r.app_id,
             app_name: r.app_name,
             window_title: r.window_title,
@@ -117,7 +117,7 @@ pub async fn get_nearest_screenshot(
     db_pool: &sqlx::Pool<sqlx::Sqlite>,
     ts_sec: i64,
     app_id: Option<i64>,
-) -> Result<Option<ScreenshotBlob>> {
+) -> Result<Option<Screenshot>> {
     // Two indexed queries (>= ts and < ts), then pick the closer in Rust to avoid functions on the column.
     let newer_row = sqlx::query!(
         r#"
@@ -137,7 +137,7 @@ pub async fn get_nearest_screenshot(
     .fetch_optional(db_pool)
     .await?;
 
-    let newer: Option<ScreenshotBlob> = newer_row.map(|r| ScreenshotBlob {
+    let newer: Option<Screenshot> = newer_row.map(|r| Screenshot {
         id: r.id,
         app_id: r.app_id,
         created_at_sec: r.created_at_sec,
@@ -162,7 +162,7 @@ pub async fn get_nearest_screenshot(
     .fetch_optional(db_pool)
     .await?;
 
-    let older: Option<ScreenshotBlob> = older_row.map(|r| ScreenshotBlob {
+    let older: Option<Screenshot> = older_row.map(|r| Screenshot {
         id: r.id,
         app_id: r.app_id,
         created_at_sec: r.created_at_sec,
@@ -180,7 +180,7 @@ pub async fn get_nearest_screenshot(
         }
     };
 
-    Ok(pick.map(|r| ScreenshotBlob {
+    Ok(pick.map(|r| Screenshot {
         id: r.id,
         app_id: r.app_id,
         created_at_sec: r.created_at_sec,

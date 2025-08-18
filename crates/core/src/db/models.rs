@@ -2,7 +2,7 @@ use serde::Serialize;
 use sqlx::FromRow;
 
 #[derive(Debug, FromRow)]
-pub struct DBApp {
+pub struct App {
     pub id: Option<i64>,
     pub name: String,
     pub path: String,
@@ -10,7 +10,7 @@ pub struct DBApp {
 }
 
 #[derive(Debug, Serialize)]
-pub struct WindowEventRow {
+pub struct WindowEvent {
     pub app_id: i64,
     pub app_name: String,
     pub window_title: String,
@@ -19,7 +19,7 @@ pub struct WindowEventRow {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ScreenshotBlob {
+pub struct Screenshot {
     pub id: i64,
     pub app_id: i64,
     pub created_at_sec: i64,

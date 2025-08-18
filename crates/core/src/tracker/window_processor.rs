@@ -1,7 +1,7 @@
 use crate::db::crud::{
     create_app, create_screenshot, create_window_event, get_saved_app, update_app_path,
 };
-use crate::db::models::DBApp;
+use crate::db::models::App;
 use crate::platform::screenshot::screenshot_window;
 use crate::platform::tracker::set_win_event_hook;
 use crate::tracker::events::{WindowEvent, WindowForegroundEvent};
@@ -168,7 +168,7 @@ impl WindowEventProcessor {
         self.screenshot_handle = Some(screenshot_task);
     }
 
-    async fn find_or_create_app(&self, event: &WindowForegroundEvent) -> Result<DBApp> {
+    async fn find_or_create_app(&self, event: &WindowForegroundEvent) -> Result<App> {
         if let Some(app) = get_saved_app(&self.db_pool, &event.name).await {
             if app.path != event.path {
                 // Update the app path if it has changed
@@ -177,7 +177,7 @@ impl WindowEventProcessor {
                     event.name, app.path, event.path
                 );
 
-                let updated_app = DBApp {
+                let updated_app = App {
                     id: app.id,
                     name: app.name.clone(),
                     path: event.path.clone(),
@@ -197,7 +197,7 @@ impl WindowEventProcessor {
             event.name, event.path
         );
 
-        let app = DBApp {
+        let app = App {
             id: None,
             name: event.name.clone(),
             path: event.path.clone(),
