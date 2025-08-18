@@ -20,28 +20,35 @@
 - Automatic tracking of active windows and applications
 - Windows API integration (Linux/macOS planned)
 - SQLite database for fast, local storage ([SQLx](https://github.com/launchbadge/sqlx))
-- Planned Tauri v2 frontend for a modern desktop UI
 - ABSOLUTELY no external data transfer, everything is stored locally and will never leave your machine
 - Open-source under the AGPL-3.0 license (See [LICENSE](LICENSE))
+- 90% vibe-coded front-end with Tauri v2 and React+TypeScript using shadcn/ui components
+---
+
+## 📥 Download
+
+Download the latest release from [GitHub Releases](https://github.com/ber2minsin/intime/releases).
 
 ---
 
-## 🚀 Quick Start
+## 🔧 Development Environment / Compiling from Source
 
 ```bash
 git clone https://github.com/ber2minsin/intime.git
 cd intime
 ```
 
-You should set up a `.env` file in the root directory of the project. You can use the provided `.env.example` as a template.
-
-After setting up the `.env` file, you can run the application using:
+You can run the full application in development mode using:
 
 ```bash
-cargo run --release
+cargo tauri dev
 ```
 
-The application creates a local SQLite database at `./data/intime.db` by default (or specified in the `.env` file). If it fails to create the database, you can manually create the database using the following command:
+The application creates a local SQLite database at `%APPDATA%/Roaming/intime/data/intime.db` by default and stores its configuration file at `%APPDATA%/Roaming/intime/intime_config.toml`. All data and configuration are stored locally and will never leave your machine. Everything in `intime_config.toml` can be changed through "Settings" tab in the UI.
+
+For development environments, you can set up an environment file using the provided `.env.example` as a template at the project root. Make sure to use the `file:` protocol in your database URL or SQLx might raise an error.
+
+If the database fails to create automatically, you can manually create it using the following commands:
 
 ```bash
 # install sqlx-cli if you haven't already
@@ -53,20 +60,19 @@ Then, run the following commands to create the database and apply migrations:
 ```bash
 sqlx db create
 sqlx migrate run
-``` 
+```
 
-Optionally, you can provide the database URL in the command
+For offline compilation support, you can prepare SQL queries:
 
 ```bash
-sqlx db create --database-url sqlite://./data/intime.db
-sqlx migrate run --database-url sqlite://./data/intime.db
+cargo sqlx prepare --workspace
 ```
 
 ---
 
 ## 📝 License
 
-AGPL-3.0 — see the LICENSE file for details.
+AGPL-3.0 — see the [LICENSE](LICENSE) file for details.
 
 ---
 
