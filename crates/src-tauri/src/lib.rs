@@ -132,23 +132,34 @@ pub fn run() {
 
                         tauri::async_runtime::spawn(async move {
                             // Create a "Close" window event to mark the end of the session
-                            // I want to refactor this later somehow.
+                            // Use current timestamp to ensure proper ordering before async operations
+                            let close_timestamp_sec = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs()
+                                as i64;
                             let close_event = WindowEventType::new(99999);
 
                             // Get the most recent app_id, or create a system app as fallback
                             let app_id = get_or_create_system_app(&pool).await;
-                            let result = core::db::crud::create_window_event(
+
+                            // Create the close event with precise timing
+                            let result = core::db::crud::create_window_event_with_timestamp(
                                 &pool,
                                 app_id,
                                 "Application Closing".to_string(),
                                 close_event,
+                                close_timestamp_sec,
                             )
                             .await;
 
                             if let Err(e) = result {
                                 eprintln!("Failed to create close window event: {}", e);
                             } else {
-                                println!("Close window event created successfully");
+                                println!(
+                                    "Close window event created successfully at {}",
+                                    close_timestamp_sec
+                                );
                             }
                         });
                     }

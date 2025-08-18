@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO window_event (app_id, window_title, event_type, created_at) VALUES (?, ?, ?, datetime(?, 'unixepoch'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0ea60930a93e43735d1137be290daab7793ed27a7deded01323e5a86300b1b3c"
+}

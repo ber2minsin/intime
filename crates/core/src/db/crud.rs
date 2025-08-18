@@ -59,6 +59,26 @@ pub async fn create_window_event(
     Ok(())
 }
 
+pub async fn create_window_event_with_timestamp(
+    db_pool: &sqlx::Pool<sqlx::Sqlite>,
+    app_id: i64,
+    title: String,
+    event: WindowEventType,
+    timestamp_sec: i64,
+) -> Result<(), sqlx::Error> {
+    let event_type_str = format!("{:?}", event);
+    sqlx::query!(
+        "INSERT INTO window_event (app_id, window_title, event_type, created_at) VALUES (?, ?, ?, datetime(?, 'unixepoch'))",
+        app_id,
+        title,
+        event_type_str,
+        timestamp_sec
+    )
+    .execute(db_pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn create_screenshot(
     db_pool: &sqlx::Pool<sqlx::Sqlite>,
     image: Vec<u8>,
