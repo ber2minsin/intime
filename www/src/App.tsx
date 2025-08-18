@@ -15,7 +15,7 @@ import { Sun, Moon, Monitor, Palette } from "lucide-react";
 type Row = { app_id: number; app_name: string; window_title: string; event_type: string; created_at_sec: number };
 
 function AppInner() {
-  const [items, setItems] = useState<Array<{ id: string; start: Date; end: Date; name: string; color?: string }>>([]);
+  const [items, setItems] = useState<Array<{ id: string; start: Date; end: Date; name: string; color?: string; app_id: number }>>([]);
   const [usages, setUsages] = useState<Array<{ appId: number; appName: string; durationMs: number; percent: number; color?: string }>>([]);
   const [windowRows, setWindowRows] = useState<Array<{ id: string; title: string; startMs: number; endMs: number; durationMs: number; appId?: number }>>([]);
   // UI state: tabs and settings
@@ -181,7 +181,7 @@ function AppInner() {
           appToItemIdsRef.current.set(r.app_id, arrA);
         }
 
-        return { id, start, end, name, color };
+        return { id, start, end, name, color, app_id: r.app_id };
       }).filter((item: any) => !item.name.startsWith("System:")); // Filter out System events from display
       setItems(mapped);
 

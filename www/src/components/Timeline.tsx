@@ -19,7 +19,7 @@ const ALLOWED_STEPS_MIN = [
     1440, 2880, 4320, 10080, 20160, 43200
 ] as const;
 
-type ItemInput = { id?: string; start: Date | string | number; end: Date | string | number; name?: string; label?: string; color?: string };
+type ItemInput = { id?: string; start: Date | string | number; end: Date | string | number; name?: string; label?: string; color?: string; app_id?: number };
 type TimelineProps = {
     items?: ItemInput[];
     children?: React.ReactNode;
@@ -67,6 +67,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
     // Optional: hover magnification of items (visual lens) controlled via prop
     const [hoverX, setHoverX] = useState<number | null>(null);
     const [hoverMs, setHoverMs] = useState<number | null>(null);
+    const [hoverAppId, setHoverAppId] = useState<number | null>(null);
     const [hoverClientX, setHoverClientX] = useState<number | null>(null);
     const [hoverClientY, setHoverClientY] = useState<number | null>(null);
     const [hoverImg, setHoverImg] = useState<string | null>(null);
@@ -208,11 +209,31 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
             setHoverMs(xToTime(x));
             setHoverClientX(e.clientX);
             setHoverClientY(e.clientY);
+            
+            // Find which item is being hovered to get its app_id
+            let hoveredAppId: number | null = null;
+            for (let idx = 0; idx < itemList.length; idx++) {
+                const it = itemList[idx];
+                const left = timeToX(it.start.getTime());
+                const endMs = Math.min(it.end.getTime(), nowMs);
+                const endX = timeToX(endMs);
+                const nowX = timeToX(nowMs);
+                const right = Math.min(endX, nowX - 0.5);
+                const widthPx = Math.max(0, right - left);
+                if (widthPx <= 0) continue;
+                if (left <= x && x <= right && it.app_id) {
+                    hoveredAppId = it.app_id;
+                    break; // Use the first match (they should be sorted by time)
+                }
+            }
+            setHoverAppId(hoveredAppId);
+            
             // debug removed
         };
         const onLeave = () => {
             setHoverX(null);
             setHoverMs(null);
+            setHoverAppId(null);
             setHoverClientX(null);
             setHoverClientY(null);
             if (hoverImgUrlRef.current) {
@@ -232,11 +253,11 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
 
     useEffect(() => {
         // debounce fetch to avoid spamming on every pixel movement
-        if (hoverMs == null) return;
+        if (hoverMs == null || hoverAppId == null) return;
         if (hoverFetchRef.current) window.clearTimeout(hoverFetchRef.current);
         const timeoutId = window.setTimeout(async () => {
             try {
-                const res: any = await invoke("get_nearest_screenshot", { tsMs: Math.floor(hoverMs), appId: null });
+                const res: any = await invoke("get_nearest_screenshot", { tsMs: Math.floor(hoverMs), appId: hoverAppId });
                 if (!res || !res.png || res.png.length === 0) {
                     if (hoverImgUrlRef.current) { URL.revokeObjectURL(hoverImgUrlRef.current); hoverImgUrlRef.current = null; }
                     setHoverImg(null);
@@ -263,7 +284,7 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         return () => {
             if (hoverFetchRef.current) window.clearTimeout(hoverFetchRef.current);
         };
-    }, [hoverMs]);
+    }, [hoverMs, hoverAppId]);
 
     // cleanup object URL on unmount
     useEffect(() => {
@@ -371,14 +392,15 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
         return [];
     });
 
-    type NormalizedItem = { id: string; start: Date; end: Date; name: string; color?: string };
+    type NormalizedItem = { id: string; start: Date; end: Date; name: string; color?: string; app_id?: number };
     const itemList: NormalizedItem[] = [...items, ...childItems]
         .map((it, idx) => {
             const toDate = (v: Date | string | number) => v instanceof Date ? v : new Date(v);
             const name = (it.name ?? it.label ?? "").toString();
             const id = it.id ?? `${name || "item"}-${idx}`;
             const color = it.color;
-            return { id, start: toDate(it.start), end: toDate(it.end), name, color };
+            const app_id = it.app_id;
+            return { id, start: toDate(it.start), end: toDate(it.end), name, color, app_id };
         })
         .sort((a, b) => a.start.getTime() - b.start.getTime());
 
@@ -525,9 +547,28 @@ const Timeline: React.FC<TimelineProps> = ({ items = [], children, onViewportCha
                         setHoverMs(xToTime(x));
                         setHoverClientX(e.clientX);
                         setHoverClientY(e.clientY);
+                        
+                        // Find which item is being hovered to get its app_id
+                        let hoveredAppId: number | null = null;
+                        for (let idx = 0; idx < itemList.length; idx++) {
+                            const it = itemList[idx];
+                            const left = timeToX(it.start.getTime());
+                            const endMs = Math.min(it.end.getTime(), nowMs);
+                            const endX = timeToX(endMs);
+                            const nowX = timeToX(nowMs);
+                            const right = Math.min(endX, nowX - 0.5);
+                            const widthPx = Math.max(0, right - left);
+                            if (widthPx <= 0) continue;
+                            if (left <= x && x <= right && it.app_id) {
+                                hoveredAppId = it.app_id;
+                                break; // Use the first match (they should be sorted by time)
+                            }
+                        }
+                        setHoverAppId(hoveredAppId);
                     }} onPointerLeave={() => {
                         setHoverX(null);
                         setHoverMs(null);
+                        setHoverAppId(null);
                         setHoverClientX(null);
                         setHoverClientY(null);
                         if (hoverImgUrlRef.current) { URL.revokeObjectURL(hoverImgUrlRef.current); hoverImgUrlRef.current = null; }
