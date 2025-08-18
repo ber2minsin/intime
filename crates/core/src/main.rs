@@ -4,7 +4,9 @@ use core::{db, tracker::window_processor::WindowEventProcessor};
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set in environment");
+    let config = core::config::Config::load().unwrap_or_default();
+    let db_url = config.database_url;
+    println!("Using database URL: {}", db_url);
     let db_pool = db::pool::create_pool(&db_url).await?;
 
     let processor = WindowEventProcessor::new(db_pool);

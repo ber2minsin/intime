@@ -79,8 +79,9 @@ pub fn run() {
             }
 
             // Create the database pool and manage it as state.
-            let database_url = std::env::var("DATABASE_URL").unwrap();
-            let pool = tauri::async_runtime::block_on(SqlitePool::connect(&database_url))?;
+            let config = core::config::Config::load().unwrap_or_default();
+            let db_url = config.database_url;
+            let pool = tauri::async_runtime::block_on(SqlitePool::connect(&db_url))?;
             app.manage(AppState { pool: pool.clone() });
 
             // Start window_processor in the background

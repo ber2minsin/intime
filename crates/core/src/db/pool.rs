@@ -1,7 +1,10 @@
+use anyhow::Error;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use std::{str::FromStr, time::Duration};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 
-pub async fn create_pool(db_url: &str) -> Result<SqlitePool, sqlx::Error> {
+pub async fn create_pool(db_url: &str) -> Result<SqlitePool, Error> {
+    std::fs::create_dir_all(PathBuf::from(db_url).parent().unwrap()).unwrap();
+
     let pool = SqlitePoolOptions::new()
         .max_connections(8)
         .acquire_timeout(Duration::from_secs(5))
