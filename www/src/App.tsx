@@ -169,15 +169,20 @@ function AppInner() {
         const id = `${r.app_id}-${r.created_at_sec}-${r.window_title}`;
         const name = `${r.app_name}: ${r.window_title}`;
         const color = colorForApp(r.app_id);
-        // index
-        idToAppIdRef.current.set(id, r.app_id);
-        // map id to its index in rowsRef for quick lookup when building selection-based table rows
-        idToIndexRef.current.set(id, idx);
-        const arrA = appToItemIdsRef.current.get(r.app_id) || [];
-        arrA.push(id);
-        appToItemIdsRef.current.set(r.app_id, arrA);
+
+        // Only index non-System events for UI interactions
+        if (r.app_name !== "System") {
+          // index
+          idToAppIdRef.current.set(id, r.app_id);
+          // map id to its index in rowsRef for quick lookup when building selection-based table rows
+          idToIndexRef.current.set(id, idx);
+          const arrA = appToItemIdsRef.current.get(r.app_id) || [];
+          arrA.push(id);
+          appToItemIdsRef.current.set(r.app_id, arrA);
+        }
+
         return { id, start, end, name, color };
-      });
+      }).filter((item: any) => !item.name.startsWith("System:")); // Filter out System events from display
       setItems(mapped);
 
       // Note: Usage calculation is now handled by the useEffect that watches selectedIds
@@ -254,6 +259,9 @@ function AppInner() {
       const accAll = new Map<number, { appName: string; durationMs: number }>();
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
+        // Skip System app events from display but keep them for duration calculations
+        if (r.app_name === "System") continue;
+
         const nextSec = rows[i + 1]?.created_at_sec ?? nowSec;
         const segStartMs = r.created_at_sec * 1000;
         const segEndMs = Math.min(nextSec, nowSec) * 1000;
@@ -286,6 +294,9 @@ function AppInner() {
       const idx = idToIndexRef.current.get(id);
       if (idx == null) continue;
       const r = rows[idx];
+      // Skip System app events from display but keep them for duration calculations
+      if (r.app_name === "System") continue;
+
       const nextSec = rows[idx + 1]?.created_at_sec ?? nowSec;
       const segStartMs = r.created_at_sec * 1000;
       const segEndMs = Math.min(nextSec, nowSec) * 1000;
